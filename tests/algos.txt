@@ -1,0 +1,80 @@
+# FIKH-S: every algorithm of BANK 1, held as a drone (a screen and a recording of each)
+wait 3000
+tap PLAY
+expect hold 1
+key 0 down 100
+wait 100
+key 0 up
+expect note 53
+wav a1.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+shot a1.png
+turn PRESET 1
+wait 100
+expect algo 1
+wav a2.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+expect engine_algo 1
+shot a2.png
+turn PRESET 1
+wav a3.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+shot a3.png
+turn PRESET 1
+wav a4.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+shot a4.png
+turn PRESET 1
+wav a5.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+shot a5.png
+turn PRESET 1
+wav a6.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+shot a6.png
+turn PRESET 1
+wav a7.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+shot a7.png
+turn PRESET 1
+wav a8.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+shot a8.png
+turn PRESET 1
+wav a9.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+expect algo 8
+shot a9.png
+# around: back to the first
+turn PRESET 1
+expect algo 0
+# each keeps its own knobs: WARP on 1, then on 2, then back
+turn K1 5 120
+expect p0 55
+turn PRESET 1
+expect p0 40
+turn PRESET -1
+expect p0 55
+# SEQ held: the algorithm as it came
+press SEQ
+wait 1100
+release SEQ
+expect p0 50

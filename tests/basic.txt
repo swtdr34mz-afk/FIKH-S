@@ -1,0 +1,68 @@
+# FIKH-S in the host simulator:
+#   X0X_FONTSET=terminus python3 fm1-base/tools/build.py . --host, then build/host/fikhs_host tests/basic.txt build/host
+splashshot splash.png
+wait 700
+shot intro1.png
+wait 1100
+shot intro2.png
+wait 1200
+expect page 0
+expect algo 0
+shot boot.png
+# a key: C4 is key 7 (F3 = key 0)
+wav note.wav
+key 7 down 100
+wait 300
+expect note 60
+wait 1500
+shot main.png
+key 7 up
+wait 1500
+wavstop
+expect peak_db_min -36
+# HOLD: the drone stays
+tap PLAY
+expect hold 1
+tapkey 2 100
+wait 1200
+expect note 55
+# K1 WARP up: the knob lights, the readout shows it
+turn K1 10 100
+wait 100
+expect p0 60
+shot warp.png
+# the pages
+tap FX
+expect page 1
+wait 200
+shot proc.png
+tap ENV
+expect page 2
+shot field.png
+tap EDIT
+expect page 3
+shot motion.png
+tap HOME
+expect page 0
+# SEED and SCAN
+turn SELECT 3
+expect p16 14
+turn ALGO 2
+wait 100
+shot seedscan.png
+# DICE
+tap REC
+wait 100
+expect dirty 1
+# FREEZE
+tap ARP
+expect freeze 1
+wait 500
+shot freeze.png
+tap ARP
+expect freeze 0
+# octave
+tap OCT+
+expect oct 3
+tap OCT-
+expect oct 2
