@@ -941,54 +941,56 @@ static int batt_pct(int lvl)
     raw = raw - 515;
     return raw < 0 ? 0 : raw > 100 ? 100 : (int)raw;
 }
-/* der Akku, fein gezeichnet: ein goldener Rahmen mit Fase und runden Ecken, dahinter dunkles Rauchglas, die rote
- * Füllung als fünf LED-Segmente mit Verlauf (oben heller) und einem Glanzlicht, stufenlos bis aufs Pixel; der Pol als
- * kleine goldene Kappe. Leer (unter 8 %) blinkt er; an USB ein goldener Blitz links daneben. x, y: links oben */
-#define BT_W 21.0f
-#define BT_H 11.0f
-static void battery(float x, float y, uint32_t now)
+/* der Akku, fein gezeichnet, auf ganze Pixel gelegt: ein goldener Rahmen (1 px) mit runden Ecken, innen eine dunkle
+ * Fase (1 px), darin die Füllung, auf allen vier Seiten mit genau demselben Abstand; drei LED-Segmente mit Verlauf
+ * (oben heller) und einem Glanzlicht, stufenlos bis aufs Pixel; rechts mittig der Pol. Leer (unter 8 %) blinkt er; an
+ * USB ein goldener Blitz links daneben. x, y: die linke obere Ecke (ganze Pixel) */
+#define BT_W 22                          /* der Körper, außen, in Pixeln */
+#define BT_H 12
+static void battery(int32_t x, int32_t y, uint32_t now)
 {
     int lvl = batt_level(), pct, usb, i, j;
-    float w, iw = BT_W - 4.0f, ih = BT_H - 4.0f;
-    if (lvl < 0 || !vis(x - 12, y - 2, x + BT_W + 5, y + BT_H + 2))
+    const int iw = BT_W - 4, ih = BT_H - 4, sw = iw / 3;   /* die Füllung: 18 x 8, drei Segmente zu 6 */
+    float w, fx = (float)x, fy = (float)y;
+    if (lvl < 0 || !vis(fx - 12.0f, fy - 2.0f, fx + (float)BT_W + 4.0f, fy + (float)BT_H + 2.0f))
         return;
     usb = lvl >= 4;
     pct = batt_pct(lvl);
-    w = iw * (float)pct / 100.0f;
+    w = (float)iw * (float)pct / 100.0f;
     if (!usb && pct < 8 && ((now / 500u) & 1u))
         w = 0.0f;
-    /* der Körper: Schatten, Rahmen, die innere dunkle Kante (die Fase) */
-    s_frame(x + 1.0f, y + 1.5f, x + BT_W + 1.0f, y + BT_H + 1.5f, 2.5f, rgb3(0, 0, 0), 0.55f);
-    s_frame(x + 0.5f, y + 0.5f, x + BT_W + 0.5f, y + BT_H + 0.5f, 2.5f, GOLD, 0.95f);
-    s_frame(x + 1.5f, y + 1.5f, x + BT_W - 0.5f, y + BT_H - 0.5f, 1.6f, rgb3(70, 56, 30), 0.7f);
-    /* der Pol: eine kleine Kappe, oben heller */
-    for (j = 0; j < 5; j++)
-        s_rect(x + BT_W + 1.0f, y + 3.0f + (float)j, 2.0f, 1.0f, mix3(GOLD_HI, GOLD_DIM, (float)j / 4.0f), 0.95f);
-    s_disc(x + BT_W + 2.6f, y + 5.5f, 1.2f, GOLD, 0.6f);
-    /* das Glas und die Füllung, Pixel für Pixel */
-    for (j = 0; j < (int)ih; j++)
-        for (i = 0; i < (int)iw; i++) {
-            float px = x + 2.0f + (float)i, py = y + 2.0f + (float)j, t = (float)j / (ih - 1.0f), cov, seg;
+    /* der Schatten, der Rahmen, die Fase: Linien auf den Pixelmitten */
+    s_frame(fx + 1.5f, fy + 1.5f, fx + (float)BT_W + 0.5f, fy + (float)BT_H + 0.5f, 2.5f, rgb3(0, 0, 0), 0.5f);
+    s_frame(fx + 0.5f, fy + 0.5f, fx + (float)BT_W - 0.5f, fy + (float)BT_H - 0.5f, 2.5f, GOLD, 0.95f);
+    s_frame(fx + 1.5f, fy + 1.5f, fx + (float)BT_W - 1.5f, fy + (float)BT_H - 1.5f, 1.5f, rgb3(64, 50, 26), 0.75f);
+    /* der Pol: 2 px breit, mittig (die Zeilen 3 .. BT_H - 4), oben heller */
+    for (j = 3; j <= BT_H - 4; j++)
+        s_rect(fx + (float)BT_W, fy + (float)j, 2.0f, 1.0f,
+               mix3(GOLD_HI, GOLD_DIM, (float)(j - 3) / (float)(BT_H - 7)), j == 3 || j == BT_H - 4 ? 0.6f : 0.95f);
+    /* das Glas und die Füllung: Pixel für Pixel, 2 px vom Rand auf allen Seiten */
+    for (j = 0; j < ih; j++)
+        for (i = 0; i < iw; i++) {
+            int32_t px = x + 2 + i, py = y + 2 + j;
+            float t = (float)j / (float)(ih - 1), cov;
             col3 glass = mix3(rgb3(44, 10, 12), rgb3(22, 5, 7), t), fill;
-            if (!vis(px, py, px + 1.0f, py + 1.0f))
+            if (!vis((float)px, (float)py, (float)px + 1.0f, (float)py + 1.0f))
                 continue;
-            px_blend((int32_t)SX(px), (int32_t)py, glass, 1.0f);
+            px_blend(px - g_ox, py, glass, 1.0f);
             cov = sat01(w - (float)i);
-            seg = fmod_pos((float)i + 0.5f, iw / 5.0f);            /* fünf Segmente, dazwischen feine Fugen */
-            if (seg < 0.7f && i > 0)
-                cov *= 0.35f;
+            if (i == sw - 1 || i == 2 * sw - 1)          /* die zwei Fugen zwischen den drei Segmenten */
+                cov *= 0.3f;
             if (cov <= 0.0f)
                 continue;
-            fill = mix3(rgb3(255, 120, 110), mix3(RED, rgb3(150, 12, 20), 0.35f), t);
-            px_blend((int32_t)SX(px), (int32_t)py, fill, cov);
+            fill = mix3(rgb3(255, 125, 115), mix3(RED, rgb3(150, 12, 20), 0.35f), t);
+            px_blend(px - g_ox, py, fill, cov);
         }
     if (w > 0.5f) {
-        for (i = 0; i < (int)w && i < (int)iw; i++)                  /* das Glanzlicht oben */
-            px_glow((int32_t)SX(x + 2.0f + (float)i), (int32_t)(y + 2.0f), rgb3(255, 255, 255), 0.16f);
-        s_bloom(x + 2.0f + w * 0.5f, y + BT_H * 0.5f, 3.5f + w * 0.6f, RED, 0.13f);
+        for (i = 0; i < (int)(w + 0.5f) && i < iw; i++)          /* das Glanzlicht in der obersten Zeile */
+            px_glow(x + 2 + i - g_ox, y + 2, rgb3(255, 255, 255), 0.16f);
+        s_bloom(fx + 2.0f + w * 0.5f, fy + (float)BT_H * 0.5f, 3.5f + w * 0.6f, RED, 0.12f);
     }
-    if (usb) {                                                       /* an USB: ein Blitz links daneben */
-        float bx = x - 8.0f, by = y + 0.5f;
+    if (usb) {                                                    /* an USB: ein Blitz links daneben */
+        float bx = fx - 8.0f, by = fy + 1.0f;
         s_line(bx + 3.0f, by, bx + 0.5f, by + 5.0f, GOLD_HI, 0.95f);
         s_line(bx + 0.5f, by + 5.0f, bx + 4.0f, by + 5.0f, GOLD_HI, 0.95f);
         s_line(bx + 4.0f, by + 5.0f, bx + 1.5f, by + 10.0f, GOLD_HI, 0.95f);
@@ -1200,7 +1202,7 @@ static void scene(uint32_t now)
             int_text((int)set.oct - 2, t);
             s_text(188.0f - (float)text_w(&FONT_SERIF_XS, t), 216.0f, &FONT_SERIF_XS, t, set.oct != 2 ? C_RED : C_GOLD_DIM, 1);
         }
-        battery(201.0f, 215.5f, now);          /* rechts, gespiegelt zu HOLD links */
+        battery(201, 215, now);                /* rechts, gespiegelt zu HOLD links */
     }
     if (vis(80, 224, 160, 240)) {         /* der Name unten, im Rahmen über der Linie (wie FORGE TME am Modul) */
         float w = (float)s_text_w(&FONT_SERIF_XS, "SWTDR34MZ") + 16.0f;
