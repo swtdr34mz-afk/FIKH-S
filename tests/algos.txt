@@ -1,4 +1,4 @@
-# FIKH-S: every algorithm of BANK 1, held as a drone (a screen and a recording of each)
+# FIKH-S: every algorithm of BANK 1 and BANK 2, held as a drone (a screen and a recording of each)
 wait 3000
 tap PLAY
 expect hold 1
@@ -63,6 +63,69 @@ wavstop
 expect peak_db_min -40
 expect algo 8
 shot a9.png
+turn PRESET 1
+wav a10.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+expect engine_algo 9
+shot a10.png
+turn PRESET 1
+wav a11.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+expect engine_algo 10
+shot a11.png
+turn PRESET 1
+wav a12.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+expect engine_algo 11
+shot a12.png
+turn PRESET 1
+wav a13.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+expect engine_algo 12
+shot a13.png
+turn PRESET 1
+wav a14.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+expect engine_algo 13
+shot a14.png
+turn PRESET 1
+wav a15.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+expect engine_algo 14
+shot a15.png
+turn PRESET 1
+wav a16.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+expect engine_algo 15
+shot a16.png
+turn PRESET 1
+wav a17.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+expect engine_algo 16
+shot a17.png
+turn PRESET 1
+wav a18.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+expect engine_algo 17
+shot a18.png
 # around: back to the first
 turn PRESET 1
 expect algo 0

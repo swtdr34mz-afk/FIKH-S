@@ -36,6 +36,25 @@ const fk_algo_info FK_ALGOS[FK_NALGO] = {
      {78, 96, 50, 40, 60, 88, 80, 74, 56, 64, 30, 80, 18, 50, 96, 94, 7, 34}},
     {"GRAIN CLOUD", "GRANULAR / PITCH", PROC_REFLEKTA,
      {64, 88, 46, 36, 72, 92, 76, 84, 52, 88, 48, 92, 26, 58, 104, 96, 51, 40}},
+    /* BANK 2 */
+    {"ZERO CARRIER", "0 HZ WAVETABLE", PROC_REFLEKTA,
+     {56, 76, 40, 50, 64, 88, 80, 76, 52, 64, 34, 82, 20, 48, 96, 96, 13, 30}},
+    {"DISPERSOR", "COUPLED SINES", PROC_DISPERSOR,
+     {44, 84, 50, 40, 62, 90, 86, 70, 54, 64, 36, 84, 20, 52, 96, 98, 21, 40}},
+    {"NOTCH STACK", "SINE DRIVE / NOTCH", PROC_DUNGEON,
+     {64, 70, 50, 84, 56, 84, 60, 70, 56, 64, 24, 76, 18, 46, 92, 92, 9, 20}},
+    {"SINE SWARM", "EIGHT LOOSE SINES", PROC_DUNGEON,
+     {58, 90, 50, 34, 62, 86, 72, 76, 52, 64, 46, 88, 22, 56, 100, 98, 33, 40}},
+    {"RADIO", "CHANNEL SURFING", PROC_REFLEKTA,
+     {80, 74, 40, 70, 60, 84, 70, 72, 64, 64, 20, 80, 0, 30, 90, 94, 45, 40}},
+    {"WEATHER", "WIND / RAIN / INSECTS", PROC_REFLEKTA,
+     {74, 64, 20, 30, 62, 82, 84, 80, 54, 64, 60, 90, 0, 40, 104, 96, 27, 50}},
+    {"ARCHITECT", "MORPHING BODY", PROC_DUNGEON,
+     {54, 92, 30, 50, 60, 84, 70, 74, 60, 64, 4, 90, 0, 30, 96, 100, 15, 30}},
+    {"FOLD BASS", "SAWS / SUB / FOLDER", PROC_DUNGEON,
+     {64, 66, 40, 30, 30, 70, 40, 60, 44, 64, 4, 50, 14, 30, 70, 96, 3, 64}},
+    {"SUPERSAW", "SEVEN SAWS", PROC_REFLEKTA,
+     {64, 84, 10, 34, 58, 82, 80, 80, 50, 64, 30, 82, 18, 40, 100, 92, 19, 50}},
 };
 
 static char *vt_cat(char *d, const char *s)

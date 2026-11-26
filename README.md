@@ -1,7 +1,7 @@
 # FIKH-S
 
-Experimental synthesis for the M-VAVE FM-1 by **swtdr34mz**, after the concept of the Forge TME VHIKK X: nine
-algorithms for drones, basses, textures and noise, through a filter into a stereo processor, a metallic **DUNGEON** or
+Experimental synthesis for the M-VAVE FM-1 by **swtdr34mz**, after the concept of the Forge TME VHIKK X: eighteen
+algorithms in two banks for drones, basses, textures and noise, through a filter into a stereo processor, a metallic **DUNGEON** or
 a diffuse **REFLEKTA** delay with a frequency shifter in its feedback, then an ambient reverb after the Walrus Audio
 SLÖER (DREAM, DARK, RISE, LIGHT, RAIN). Built on
 [fm1-base](https://github.com/charlesvestal/fm1-base) and [felucca-bsp](https://github.com/hugelton/felucca-bsp).
@@ -28,12 +28,14 @@ any FM-1 firmware. It runs on both FM-1 chips.
 | LFO | **VERB**: MIX, DECAY, X, FILTER; again **VERB 2**: MODE, DEPTH, RATE, STRETCH (the reverb, the same for every algorithm) |
 | SELECT | **SEED**: every detent a new throw of the dice (offsets, wave offsets, delay taps) |
 | ALGORITHM | **SCAN**: scans random timbres, coarse for playing live |
-| PRESET | The algorithm, 1 to 9 (BANK 1). Each keeps its own knobs |
+| PRESET | The algorithm, 1 to 18 (BANK 1: 1-9, BANK 2: 10-18). Each keeps its own knobs |
 | PLAY | **HOLD**: the VCA stays open, a drone; the keys only move BASIS |
 | REC | **DICE**: a new SEED and SCAN. Held 1 s: MORPH, FUSE, FORM and TIME too |
 | ARP | **FREEZE**: the processor and the reverb keep what they have, forever; new notes sound dry over it |
 | SEQ held 1 s | The algorithm back to how it came |
 | SAVE | Save (otherwise saved by itself when it is quiet) |
+| SAVE held + key | **Snapshot**: the whole sound (algorithm, knobs, reverb, octave) stored on one of the first eight white keys |
+| SEL held + key | The snapshot on that key back |
 | OCT- / OCT+ | The octave of the keys |
 | MIDI | Notes on any channel, pitch bend ±2, CC 1 = MORPH |
 
@@ -52,6 +54,20 @@ The bipolar knobs (WARP, SPAN, FUSE, FEED, FIELD, CELL) rest at their centre, ne
 | 7 | PARTIALS | eight partials, harmonic to odd-only, or stretched inharmonic | DUNGEON |
 | 8 | COMB SWARM | a swarm of four feedback combs around BASIS | REFLEKTA |
 | 9 | GRAIN CLOUD | a free cluster; the processor shifts its pitch in grains (CELL ±12 semitones) | REFLEKTA |
+
+## The algorithms (BANK 2)
+
+| # | Name | Generator | Processor |
+| --- | --- | --- | --- |
+| 10 | ZERO CARRIER | a carrier at 0 Hz: only two modulators move its phase through a wavetable | REFLEKTA |
+| 11 | DISPERSOR | four coupled sines; twelve allpasses in the delay loop make the echoes chirp | DISPERSOR |
+| 12 | NOTCH STACK | two overdriven sines through four notches MORPH sweeps; a rectifier on SCAN | DUNGEON |
+| 13 | SINE SWARM | eight loose sines, scattered by SEED | DUNGEON |
+| 14 | RADIO | a shortwave dial (MORPH) across six stations: beeps, chirps, formant voices, chords, static | REFLEKTA |
+| 15 | WEATHER | wind, rain, insects, tuned to BASIS | REFLEKTA |
+| 16 | ARCHITECT | a body of six modes MORPH rebuilds: string, bar, plate, bell, room; struck or bowed | DUNGEON |
+| 17 | FOLD BASS | two saws and a sub through a wavefolder | DUNGEON |
+| 18 | SUPERSAW | seven saws, from saw to drifting pulse | REFLEKTA |
 
 ## The reverb (VERB)
 
@@ -75,7 +91,7 @@ wide. If the CPU runs out (over 88 % for a second), FIKH-S plays with fewer osci
 ## Building
 
     X0X_FONTSET=terminus python3 fm1-base/tools/build.py . --host
-    for t in basic algos pages battery verb; do build/host/fikhs_host tests/$t.txt build/host; done
+    for t in basic algos pages battery verb snaps; do build/host/fikhs_host tests/$t.txt build/host; done
 
 The firmware itself is built on GitHub (Actions), on every push to `main`, every pull request and every tag `v*`.
 The sound core alone: `cc -O2 -Idsp -Ifm1-base/include tools/render_demo.c dsp/fikh_core.c -lm -o build/render_demo`.

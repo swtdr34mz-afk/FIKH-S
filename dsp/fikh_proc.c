@@ -59,7 +59,8 @@ static inline float ap_run(int i, float x, float g)
 static void proc_block(const float *gl, const float *gr, float *ol, float *or_, int n)
 {
     const fk_cfg *k = &E.cfg;
-    int i, c, refl = FK_ALGOS[E.algo].proc == PROC_REFLEKTA, grain = E.algo == 8;
+    int i, c, refl = FK_ALGOS[E.algo].proc == PROC_REFLEKTA, grain = E.algo == 8, disp = FK_ALGOS[E.algo].proc == PROC_DISPERSOR;
+    float dco[12];
     float mixa = E.v.mix * 1.5707963f, dry = fm_cosf(mixa), wet = fm_sinf(mixa) * 1.15f;
     float fb = fk_abs(E.v.feed) * 1.04f, form = E.v.form, fneg = E.v.feed < 0.0f;
     float dtarget = fk_clamp(fk_time_ms(E.v.time) * (FK_SR / 1000.0f), 8.0f, (float)FK_DL_N - 9000.0f);
@@ -72,6 +73,8 @@ static void proc_block(const float *gl, const float *gr, float *ol, float *or_, 
     float etg = (E.gate || E.hold) && E.note >= 0 ? E.vel : 0.0f, xg = E.xf, xstep = E.xf_dir * (1.0f / 441.0f);
     float duck = E.duck_g, dstep = (E.duck ? -1.0f : 1.0f) * (1.0f / 441.0f);
     float phs_a = 0.0f, phs_c[2], frz = E.frz, ftg = E.freeze ? 1.0f : 0.0f;
+    for (i = 0; i < 12; i++)                            /* DISPERSOR: FORM wie stark, SEED verteilt die Allpässe */
+        dco[i] = fk_clamp(-0.15f + 0.95f * form + 0.18f * E.dsp_a[i], -0.6f, 0.94f);
     if (grain) {                                        /* die Körner: die Leseköpfe wandern mit (1 - Verhältnis) */
         float ratio = fm_exp2f(E.v.cell * 1.0f);
         gstep = (1.0f - ratio) / gw;
@@ -173,8 +176,15 @@ static void proc_block(const float *gl, const float *gr, float *ol, float *or_, 
                         float t3 = dl_read(b, E.dw, D * E.tap[c][3]);
                         v = t0 * (1.0f - 0.45f * form) + (t1 + t2 + t3) * 0.36f * form;
                     }
-                    v = ap_run(8 + c * 2, v, gdun);
-                    y[c] = ap_run(9 + c * 2, v, gdun * 0.9f);
+                    if (disp) {                 /* DISPERSOR: zwölf Allpässe erster Ordnung: die Echos zirpen */
+                        int j;
+                        for (j = 0; j < 12; j++)
+                            v = fk_ap1(&E.dsp_z[c][j], v, dco[j]);
+                        y[c] = v;
+                    } else {
+                        v = ap_run(8 + c * 2, v, gdun);
+                        y[c] = ap_run(9 + c * 2, v, gdun * 0.9f);
+                    }
                 }
                 if (grain) {                            /* zwei Köpfe, je ein Sinus²-Fenster: zusammen immer 1 */
                     float p0 = E.gp, p1 = p0 + 0.5f, w0, h0, h1;

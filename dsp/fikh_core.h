@@ -25,7 +25,8 @@
 #include <stdint.h>
 
 #define FK_SR 44100.0f
-#define FK_NALGO 9
+#define FK_NALGO 18                      /* zwei Bänke zu neun */
+#define FK_BANK 9
 #define FK_BLOCK_MAX 256
 
 /* die Parameter, 0..127; die bipolaren mit der Mitte 64 */
@@ -52,7 +53,7 @@ typedef struct {
 extern const fk_param_info FK_PARAMS[FK_NP];
 
 /* die Algorithmen: Name, Untertitel, Prozessor */
-enum { PROC_DUNGEON, PROC_REFLEKTA };
+enum { PROC_DUNGEON, PROC_REFLEKTA, PROC_DISPERSOR };
 typedef struct {
     const char *name;                    /* kurz, groß */
     const char *sub;                     /* was er ist */

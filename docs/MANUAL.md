@@ -1,7 +1,7 @@
 # FIKH-S – Manual
 
 FIKH-S is an experimental synth for the M-VAVE FM-1 by **swtdr34mz**, after the concept of the Forge TME VHIKK X, for
-drones, basses, textures and noise. A **generator** (one of nine algorithms) runs through a filter (**FIELD**) and a
+drones, basses, textures and noise. A **generator** (one of eighteen algorithms in two banks) runs through a filter (**FIELD**) and a
 VCA into a **processor**: a stereo delay with a frequency shifter in its feedback, metallic (**DUNGEON**) or soft and
 diffuse (**REFLEKTA**), then an ambient reverb after the Walrus Audio SLÖER.
 
@@ -30,12 +30,14 @@ pages, HOLD (and FREEZE or ECO), the octave and the battery.
 | LFO | page **VERB**: MIX, DECAY, X, FILTER; again **VERB 2**: MODE, DEPTH, RATE, STRETCH |
 | SELECT | **SEED**: every detent a new throw |
 | ALGORITHM | **SCAN**, coarse, for playing live |
-| PRESET | the algorithm, 1 to 9; each keeps its own knobs |
+| PRESET | the algorithm, 1 to 18 (BANK 1: 1-9, BANK 2: 10-18); each keeps its own knobs |
 | PLAY | **HOLD**: the VCA stays open, a drone; the keys only move BASIS |
 | REC | **DICE**: a new SEED and SCAN; held 1 s, MORPH, FUSE, FORM and TIME too |
 | ARP | **FREEZE**: the processor and the reverb keep what they have, forever; new notes sound dry over it |
 | SEQ held 1 s | the algorithm back to how it came |
 | SAVE | save (otherwise saved by itself when it is quiet: a write stops the sound for a moment) |
+| SAVE held + key | **store a snapshot**: the whole sound (algorithm, knobs, reverb, octave) on one of the first eight white keys |
+| SEL held + key | **load the snapshot** |
 | OCT- / OCT+ | the octave of the keys (-2 .. +2) |
 | MIDI | notes on any channel, pitch bend ±2, CC 1 = MORPH |
 
@@ -93,6 +95,25 @@ sample rate (longer, darker tails, artefacts). MODE, one detent each:
 7. **PARTIALS** (DUNGEON): eight partials, stretched inharmonic (left) or harmonic to odd-only (right).
 8. **COMB SWARM** (REFLEKTA): four feedback combs around BASIS, excited by a saw and noise.
 9. **GRAIN CLOUD** (REFLEKTA): a free cluster; the processor shifts its pitch in grains (CELL, FORM the grain size).
+
+## The algorithms (BANK 2)
+
+10. **ZERO CARRIER** (REFLEKTA): a carrier at 0 Hz, its phase moved through a wavetable by two modulators only.
+11. **DISPERSOR**: four coupled sines; twelve allpasses in the delay loop make the echoes chirp (FORM, SEED).
+12. **NOTCH STACK** (DUNGEON): two overdriven sines through four notches MORPH sweeps; SCAN a rectifier and folder.
+13. **SINE SWARM** (DUNGEON): eight loose sines scattered by SEED.
+14. **RADIO** (REFLEKTA): MORPH tunes across six stations (beeps, chirps, formant voices, chords) through static;
+    WARP right the heterodyne whistle, left fading.
+15. **WEATHER** (REFLEKTA): wind, rain and insects tuned to BASIS, MORPH between them.
+16. **ARCHITECT** (DUNGEON): six modes MORPH rebuilds (string, bar, plate, bell, room), struck by every note and by
+    itself (SCAN), bowed (WARP left).
+17. **FOLD BASS** (DUNGEON): two saws and a sub through a wavefolder.
+18. **SUPERSAW** (REFLEKTA): seven saws, MORPH to a drifting pulse.
+
+## Snapshots
+
+Eight whole sounds on the first eight white keys: SAVE held and a key stores, SEL held and the key loads. While
+either is held the keys do not play; the stored ones light, the last one blinks.
 
 ## Load
 

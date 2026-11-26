@@ -1,0 +1,44 @@
+# FIKH-S: snapshots. SAVE held + one of the first eight white keys stores, SEL held + the key loads; SAVE alone saves
+wait 3000
+# a sound: algorithm 5, WARP moved, the reverb more
+turn PRESET 4
+expect algo 4
+turn K1 6 120
+expect p0 68
+press SAVE
+wait 100
+shot snapstore.png
+key 2 down 100
+wait 50
+key 2 up
+release SAVE
+expect snap 2
+expect snapused2 1
+# no note was played by the key
+expect note -1
+# another sound
+turn PRESET 9
+expect algo 13
+turn K1 -4 120
+# back: SEL held + the key
+press SEL
+wait 100
+shot snapload.png
+key 2 down 100
+wait 50
+key 2 up
+release SEL
+expect algo 4
+expect p0 68
+expect engine_algo 4
+# an empty place
+press SEL
+key 7 down 100
+wait 50
+key 7 up
+release SEL
+expect algo 4
+# SAVE alone: saved (not dirty any more)
+tap SAVE
+wait 400
+expect dirty 0

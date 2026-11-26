@@ -73,6 +73,17 @@ static struct {
     int duck, eco, freeze;
     float frz;                           /* FREEZE, weich ein- und ausgeblendet (0..1) */
     int rv_trig;                         /* eine neue Note (RISE) */
+    /* BANK 2 */
+    fk_svf nst[2][4];                    /* NOTCH STACK */
+    float rad_ph[6], rad_hp[6], rad_g[6], rad_t, rad_vt, rad_qsb, rad_pop, rad_lp[2];   /* RADIO */
+    fk_svf rad_f[2], rad_n;
+    fk_svf_c rad_fc[2], rad_nc;
+    float wx_gust, wx_g0, wx_g1, wx_gain, wx_t[2], wx_rc[4], wx_rx[4], wx_rpan[4], wx_r1[4], wx_r2[4], wx_ip[2], wx_is[2];
+    fk_svf wx_f[2];                      /* WEATHER */
+    int arch_trig;
+    float arch_env, arch_lp[2], arch_y1[2][6], arch_y2[2][6];   /* ARCHITECT */
+    float ss_lfo[7];                     /* SUPERSAW */
+    float dsp_z[2][12], dsp_a[12];       /* der DISPERSOR */
 } E;
 
 static float fk_time_ms(float u);
@@ -80,6 +91,7 @@ static float fk_atk_ms(float u);
 #include "fikh_params.c"
 #include "fikh_tables.c"
 #include "fikh_gen.c"
+#include "fikh_gen2.c"
 #include "fikh_proc.c"
 #include "fikh_verb.c"
 
@@ -103,6 +115,8 @@ static void reseed(int s)
         E.tap_t[k][2] = 0.14f + 0.40f * fk_rand01(&r);
         E.tap_t[k][3] = 0.55f + 0.42f * fk_rand01(&r);
     }
+    for (k = 0; k < 12u; k++)
+        E.dsp_a[k] = fk_rand11(&r);
     E.seed = s;
 }
 
@@ -121,6 +135,7 @@ void fk_note_on(int note, int vel)
     }
     E.stack[E.nstack++] = note;
     E.rv_trig = 1;
+    E.arch_trig = 1;
     if (E.note < 0)
         E.pitch = (float)note;           /* die erste Note: kein Gleiten von irgendwo */
     E.note = note;
@@ -256,6 +271,23 @@ static void flush_states(void)
         f[i] = fm_flush(f[i]);
     for (i = 0; i < 4; i++)
         E.cbz[i] = fm_flush(E.cbz[i]);
+    for (c = 0; c < 2; c++) {
+        for (i = 0; i < 4; i++) {
+            E.nst[c][i].ic1 = fm_flush(E.nst[c][i].ic1);
+            E.nst[c][i].ic2 = fm_flush(E.nst[c][i].ic2);
+        }
+        for (i = 0; i < 12; i++)
+            E.dsp_z[c][i] = fm_flush(E.dsp_z[c][i]);
+        E.rad_f[c].ic1 = fm_flush(E.rad_f[c].ic1);
+        E.rad_f[c].ic2 = fm_flush(E.rad_f[c].ic2);
+        E.wx_f[c].ic1 = fm_flush(E.wx_f[c].ic1);
+        E.wx_f[c].ic2 = fm_flush(E.wx_f[c].ic2);
+        E.wx_t[c] = fm_flush(E.wx_t[c]);
+        E.arch_lp[c] = fm_flush(E.arch_lp[c]);
+        E.rad_lp[c] = fm_flush(E.rad_lp[c]);
+    }
+    E.rad_n.ic1 = fm_flush(E.rad_n.ic1);
+    E.rad_n.ic2 = fm_flush(E.rad_n.ic2);
 }
 
 static void block_controls(int n)
@@ -355,7 +387,16 @@ void fk_render(float *l, float *r, int n)
     case 5: gen_chords(gl, gr, n); break;
     case 6: gen_partials(gl, gr, n); break;
     case 7: gen_combs(gl, gr, n); break;
-    default: gen_grain(gl, gr, n); break;
+    case 8: gen_grain(gl, gr, n); break;
+    case 9: gen_zero(gl, gr, n); break;
+    case 10: gen_disp(gl, gr, n); break;
+    case 11: gen_notch(gl, gr, n); break;
+    case 12: gen_swarm(gl, gr, n); break;
+    case 13: gen_radio(gl, gr, n); break;
+    case 14: gen_weather(gl, gr, n); break;
+    case 15: gen_arch(gl, gr, n); break;
+    case 16: gen_fold(gl, gr, n); break;
+    default: gen_ssaw(gl, gr, n); break;
     }
     /* das Filter: FIELD und die Resonanz, die FUSE dazugibt */
     fk_svf_set(&E.fc, fk_field_hz(E.v.field), 0.08f + E.cfg.res * 0.9f);
