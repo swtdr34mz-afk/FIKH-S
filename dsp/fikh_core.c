@@ -4,11 +4,25 @@
  * die Noten, der Wurf von SEED, die Drift, und der Block. Die Teile sind eingebunden:
  *   fikh_params.c  Parameter, Algorithmen, Anzeige     fikh_tables.c  Wavetables
  *   fikh_gen.c     die neun Generatoren                fikh_proc.c    Filter, Effekte, der Prozessor */
-#include <string.h>
 #include "fikh_core.h"
 #include "fikh_dsp.h"
 
 float *fk_sin_tab;
+
+/* (der Kern hat keine C-Bibliothek: Nullen und Kopieren selbst) */
+static void fk_zero(void *d, uint32_t n)
+{
+    uint8_t *b = (uint8_t *)d;
+    while (n--)
+        *b++ = 0;
+}
+static void fk_copy(void *d, const void *s, uint32_t n)
+{
+    uint8_t *b = (uint8_t *)d;
+    const uint8_t *a = (const uint8_t *)s;
+    while (n--)
+        *b++ = *a++;
+}
 
 typedef struct {
     float chorus, sat, res, bpm, psine, dmod, diff, crush, phaser;
@@ -149,7 +163,7 @@ int fk_ducked(void) { return E.duck && E.duck_g <= 0.0f; }
 /* ------------------------------------------------------------- Parameter --- */
 void fk_params(const uint8_t p[FK_NP])
 {
-    memcpy(E.raw, p, FK_NP);
+    fk_copy(E.raw, p, FK_NP);
     E.fresh = 1;
 }
 
@@ -173,15 +187,15 @@ static void targets(void)
 void fk_init(const fk_mem *m)
 {
     int i, c;
-    memset(&E, 0, sizeof E);
+    fk_zero(&E, sizeof E);
     E.m = *m;
-    memset(E.m.dl[0], 0, FK_DL_N * sizeof(int16_t));
-    memset(E.m.dl[1], 0, FK_DL_N * sizeof(int16_t));
-    memset(E.m.ch[0], 0, FK_CH_N * sizeof(float));
-    memset(E.m.ch[1], 0, FK_CH_N * sizeof(float));
-    memset(E.m.ap, 0, FK_AP_N * sizeof(float));
+    fk_zero(E.m.dl[0], FK_DL_N * sizeof(int16_t));
+    fk_zero(E.m.dl[1], FK_DL_N * sizeof(int16_t));
+    fk_zero(E.m.ch[0], FK_CH_N * sizeof(float));
+    fk_zero(E.m.ch[1], FK_CH_N * sizeof(float));
+    fk_zero(E.m.ap, FK_AP_N * sizeof(float));
     for (i = 0; i < 4; i++)
-        memset(E.m.comb[i], 0, FK_CB_N * sizeof(float));
+        fk_zero(E.m.comb[i], FK_CB_N * sizeof(float));
     fk_sin_tab = E.m.sn;
     for (i = 0; i <= (int)FK_SIN_N; i++)
         E.m.sn[i] = fm_sin_turns((float)i / (float)FK_SIN_N);
@@ -197,7 +211,7 @@ void fk_init(const fk_mem *m)
     for (c = 0; c < 2; c++)
         for (i = 0; i < 8; i++)
             E.ph[c][i] = (float)((i * 37) % 64) / 64.0f;   /* links und rechts in Phase: breit nur durch die Drift */
-    memcpy(E.raw, FK_ALGOS[0].init, FK_NP);
+    fk_copy(E.raw, FK_ALGOS[0].init, FK_NP);
     targets();
     for (i = 0; i < FK_NP; i++)
         E.sm[i] = E.tgt[i];
@@ -295,7 +309,7 @@ static void block_controls(int n)
     E.f0 = 440.0f * fm_exp2f((E.pitch + E.bend - 69.0f) * (1.0f / 12.0f));
     /* FIELD */
     E.field_hp = E.v.field > 0.0f;
-    memset(&E.cfg, 0, sizeof E.cfg);
+    fk_zero(&E.cfg, sizeof E.cfg);
 }
 
 void fk_render(float *l, float *r, int n)
