@@ -68,7 +68,8 @@ static inline float rv_read(int i, float d)
 }
 
 /* der Tonhöhenverschieber: x hinein, die Oktave (ratio 0,5 oder 2) heraus; zwei Köpfe mit Sinus²-Fenstern */
-#define SH_W 1800.0f
+#define SH_W 1700.0f                             /* (+ 2 Samples, < FK_SH_N) */
+_Static_assert(FK_SH_N >= 1712u, "FK_SH_N: das Fenster passt nicht");
 static inline float shift_run(float x, float step)
 {
     int16_t *b = E.m.sh;

@@ -1233,10 +1233,10 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 
 void app_panic(void) { fk_panic(); }
 
-void app_splash(void)
+void app_splash(void)                   /* das erste Bild der Eröffnung: sie läuft danach nahtlos weiter */
 {
     lcd_fill(0, 0, 240, 240, RGB(14, 13, 12));
-    intro_draw(3.0f);
+    intro_draw(0.0f);
 }
 
 void app_ui_init(void)

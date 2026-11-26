@@ -69,10 +69,10 @@ extern const fk_algo_info FK_ALGOS[FK_NALGO];
 #define FK_WT_LEN 256u
 #define FK_WT_WAVES 8u
 #define FK_WT_SETS 4u
-#define FK_SIN_N 2048u                   /* die Sinustabelle (float, +1) */
+#define FK_SIN_N 1024u                   /* die Sinustabelle (float, +1) */
 #define FK_RV_N 16560u                   /* der Hall: acht Leitungen (int16) */
 #define FK_RVA_N 2288u                   /* seine Allpässe (float) */
-#define FK_SH_N 4096u                    /* der Oktavierer (int16) */
+#define FK_SH_N 2048u                    /* der Oktavierer (int16) */
 typedef struct {
     int16_t *dl[2];
     float *ch[2];

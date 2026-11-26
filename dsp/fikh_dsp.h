@@ -54,14 +54,14 @@ static inline float fk_fold(float x)
     return x > 1.0f ? 2.0f - x : x;
 }
 
-/* sin(2 pi ph), ph in Umdrehungen (beliebig): aus der Tabelle (fk_sin_tab), linear interpoliert (~ -90 dB) */
+/* sin(2 pi ph), ph in Umdrehungen (beliebig): aus der Tabelle (fk_sin_tab), linear interpoliert (~ -84 dB) */
 extern float *fk_sin_tab;
 static inline float fk_sin(float ph)
 {
-    float x = ph - fm_floorf(ph), f = x * 2048.0f, fr;
+    float x = ph - fm_floorf(ph), f = x * (float)FK_SIN_N, fr;
     int i = (int)f;
     fr = f - (float)i;
-    i &= 2047;
+    i &= (int)FK_SIN_N - 1;
     return fk_sin_tab[i] + (fk_sin_tab[i + 1] - fk_sin_tab[i]) * fr;
 }
 
