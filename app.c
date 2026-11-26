@@ -10,11 +10,12 @@
  *              FX    PROC    MIX, FEED, FORM, TIME
  *              ENV   FIELD   FIELD, CELL, ATTACK, RELEASE
  *              EDIT  MOTION  GLIDE, DRIFT, WIDTH, LEVEL
+ *              LFO   VERB    MIX, DECAY, X, FILTER; nochmal: MODE, DEPTH, RATE, STRETCH (der Hall, für alle gleich)
  *   SELECT     SEED (jede Raste ein neuer Wurf)          ALGORITHM  SCAN (grob, für live)
  *   PRESET     der Algorithmus 1..9 (BANK 1); jeder behält seine eigenen Regler
  *   PLAY       HOLD: der VCA bleibt offen, ein Drone; die Tasten ändern nur noch BASIS
  *   REC        WÜRFELN: SEED und SCAN neu; 1 s halten: dazu MORPH, FUSE, FORM und TIME
- *   ARP        FREEZE: das Delay hält, was es hat (endlos), Neues klingt trocken darüber
+ *   ARP        FREEZE: Delay und Hall halten, was sie haben (endlos), Neues klingt trocken darüber
  *   SEQ        1 s halten: der Algorithmus zurück auf seine Werkseinstellung
  *   SAVE       speichern (sonst automatisch, sobald es still ist)
  *   MIDI       Noten auf allen Kanälen, Pitch Bend ±2, CC 1 = MORPH */
@@ -31,13 +32,17 @@ static float mem_ap[FK_AP_N] __attribute__((section(".pool")));
 static float mem_cb[4][FK_CB_N] __attribute__((section(".pool")));
 static float mem_wt[FK_WT_SETS * FK_WT_WAVES * FK_WT_LEN] __attribute__((section(".pool")));
 static float mem_sn[FK_SIN_N + 1] __attribute__((section(".pool")));
+static int16_t mem_rv[FK_RV_N] __attribute__((section(".pool")));
+static float mem_rva[FK_RVA_N] __attribute__((section(".pool")));
+static int16_t mem_sh[FK_SH_N] __attribute__((section(".pool")));
 
 /* ------------------------------------------------------------- Speicher --- */
-#define SET_MAGIC 0x31484B46u            /* "FKH1" */
+#define SET_MAGIC 0x32484B46u            /* "FKH2": mit dem Hall */
 typedef struct {
     uint32_t magic;
     uint8_t algo, oct, hold, rsv;
-    uint8_t p[FK_NALGO][FK_NP];          /* jeder Algorithmus mit seinen Reglern */
+    uint8_t p[FK_NALGO][FK_NPA];         /* jeder Algorithmus mit seinen Reglern */
+    uint8_t verb[FK_NPV];                /* der Hall: für alle Algorithmen gleich */
 } settings_t;
 _Static_assert(sizeof(settings_t) <= PLAT_STORE_MAX, "die Einstellungen passen nicht in ein Speicherobjekt");
 static settings_t set;
@@ -51,7 +56,8 @@ static void settings_defaults(void)
     set.magic = SET_MAGIC;
     set.oct = 2;                         /* 0..4 = -2..+2: die Tasten F3..G5 */
     for (a = 0; a < FK_NALGO; a++)
-        memcpy(set.p[a], FK_ALGOS[a].init, FK_NP);
+        memcpy(set.p[a], FK_ALGOS[a].init, FK_NPA);
+    memcpy(set.verb, FK_VERB_INIT, FK_NPV);
 }
 
 static void settings_load(void)
@@ -59,9 +65,12 @@ static void settings_load(void)
     int a, i, ok = plat_store_load(OBJ_SETTINGS, &set, sizeof set) == (int)sizeof set && set.magic == SET_MAGIC
                    && set.algo < FK_NALGO && set.oct <= 4u && set.hold <= 1u;
     for (a = 0; ok && a < FK_NALGO; a++)
-        for (i = 0; i < FK_NP; i++)
+        for (i = 0; i < FK_NPA; i++)
             if (set.p[a][i] > 127u)
                 ok = 0;
+    for (i = 0; ok && i < FK_NPV; i++)
+        if (set.verb[i] > 127u)
+            ok = 0;
     if (!ok)
         settings_defaults();
 }
@@ -73,11 +82,21 @@ static void dirty(void)
 }
 
 /* ------------------------------------------------- an die Engine (Hauptschleife) --- */
-static uint8_t *cur_p(void) { return set.p[set.algo]; }
+/* ein Parameter: die des Algorithmus, oder die des Halls (für alle gleich) */
+static uint8_t *pval(int p) { return p >= FK_NPA ? &set.verb[p - FK_NPA] : &set.p[set.algo][p]; }
+static int pget(int p) { return *pval(p); }
+static void all_params(uint8_t *o)
+{
+    memcpy(o, set.p[set.algo], FK_NPA);
+    memcpy(o + FK_NPA, set.verb, FK_NPV);
+}
 static void push_params(void)
 {
-    uint32_t f = plat_lock();
-    fk_params(cur_p());
+    uint8_t o[FK_NP];
+    uint32_t f;
+    all_params(o);
+    f = plat_lock();
+    fk_params(o);
     plat_unlock(f);
 }
 static void e_on(int note, int vel)
@@ -94,14 +113,18 @@ static void e_off(int note)
 }
 
 /* ------------------------------------------------------------------ Seiten --- */
-enum { PG_GEN, PG_PROC, PG_FIELD, PG_MOTION, NPAGES };
-static const char *const PAGE_NAME[NPAGES] = {"GEN", "PROC", "FIELD", "MOTION"};
-static const uint8_t PAGE_BTN[NPAGES] = {B_HOME, B_FX, B_ENV, B_EDIT};
+enum { PG_GEN, PG_PROC, PG_FIELD, PG_MOTION, PG_VERB, PG_VERB2, NPAGES };
+#define NTABS 5
+static const char *const PAGE_NAME[NPAGES] = {"GEN", "PROC", "FIELD", "MOTION", "VERB", "VERB 2"};
+static const uint8_t PAGE_BTN[NPAGES] = {B_HOME, B_FX, B_ENV, B_EDIT, B_LFO, B_LFO};
+static int page_tab(int pg) { return pg == PG_VERB2 ? PG_VERB : pg; }
 static const uint8_t PAGE_K[NPAGES][4] = {
     {P_WARP, P_SPAN, P_MORPH, P_FUSE},
     {P_MIX, P_FEED, P_FORM, P_TIME},
     {P_FIELD, P_CELL, P_ATK, P_REL},
     {P_GLIDE, P_DRIFT, P_WIDTH, P_LEVEL},
+    {P_VMIX, P_VDECAY, P_VX, P_VFILT},
+    {P_VMODE, P_VDEPTH, P_VRATE, P_VSTRETCH},
 };
 
 /* was neu gezeichnet werden muss: Bereiche des Bildschirms */
@@ -193,7 +216,7 @@ static void say_param(int p)
         char s[48] = "";
         text_cat(s, FK_PARAMS[p].name);
         text_cat(s, " ");
-        text_cat(s, fk_value_text(p, cur_p()[p], t));
+        text_cat(s, fk_value_text(p, pget(p), t));
         ann_say(s, 0, ANN_NOW);
     }
 }
@@ -229,9 +252,9 @@ static int coarse(int k, int32_t e)
 static void param_set(int p, int v)
 {
     v = iclamp(v, 0, 127);
-    if (v == cur_p()[p])
+    if (v == pget(p))
         return;
-    cur_p()[p] = (uint8_t)v;
+    *pval(p) = (uint8_t)v;
     push_params();
     dirty();
     say_param(p);
@@ -239,10 +262,15 @@ static void param_set(int p, int v)
 
 static void knob_turn(int k, int32_t e)
 {
-    int p = PAGE_K[ui.page][k], v = cur_p()[p], step;
+    int p = PAGE_K[ui.page][k], v = pget(p), step;
     ui.knob_at[k] = plat_ms();
     ui.redraw |= (uint32_t)R_KNOB0 << k;
     step = (int)accel(EN_K1 + k, e, 1, 4);
+    if (p == P_VMODE) {                  /* MODE: eine Raste, ein Modus */
+        int m = iclamp(fk_vmode_of(v) + (e > 0 ? 1 : -1), 0, 4);
+        param_set(p, m * 128 / 5 + 12);
+        return;
+    }
     if (FK_PARAMS[p].bip && v == 64 && ++ui.rest[k] < 3) {   /* die Mitte rastet ein: drei Rasten, bis es weitergeht */
         say_param(p);
         return;
@@ -272,11 +300,13 @@ static void page_set(int pg)
 static void algo_set(int a)
 {
     uint32_t f;
+    uint8_t o[FK_NP];
     char t[8] = "";
     set.algo = (uint8_t)iclamp(a, 0, FK_NALGO - 1);
+    all_params(o);
     f = plat_lock();
     fk_algo(set.algo);
-    fk_params(cur_p());
+    fk_params(o);
     plat_unlock(f);
     dirty();
     ui.redraw |= R_ALL;
@@ -290,7 +320,7 @@ static void algo_set(int a)
 static void dice(int deep)
 {
     static uint32_t r = 0x6A09E667u;
-    uint8_t *p = cur_p();
+    uint8_t *p = set.p[set.algo];
     r ^= plat_ms() * 2654435761u;
     r ^= r << 13;
     r ^= r >> 17;
@@ -312,7 +342,7 @@ static void dice(int deep)
 
 static void factory(void)
 {
-    memcpy(cur_p(), FK_ALGOS[set.algo].init, FK_NP);
+    memcpy(set.p[set.algo], FK_ALGOS[set.algo].init, FK_NPA);
     push_params();
     dirty();
     ui.redraw |= R_ALL;
@@ -361,6 +391,10 @@ static void keys_input(uint32_t keys)
 static void button(uint32_t i)
 {
     int pg;
+    if (i == B_LFO) {                    /* VERB, nochmal: VERB 2 */
+        page_set(ui.page == PG_VERB ? PG_VERB2 : PG_VERB);
+        return;
+    }
     for (pg = 0; pg < NPAGES; pg++)
         if (PAGE_BTN[pg] == i) {
             page_set(pg);
@@ -376,7 +410,7 @@ static void button(uint32_t i)
         fk_freeze(on);
         plat_unlock(f);
         ui.redraw |= R_FOOT;
-        app_say("FREEZE", on ? "ON" : "OFF");
+        app_say("FREEZE", on ? "ON" : "OFF");   /* (Delay und Hall) */
         break;
     }
     case B_SAVE:
@@ -395,9 +429,8 @@ static void button(uint32_t i)
         break;
     }
     case B_SEL:
-    case B_LFO:
     case B_GLO:
-        app_say("FIKH-S", "HOME FX ENV EDIT");
+        app_say("FIKH-S", "HOME FX ENV EDIT LFO");
         break;
     default: break;
     }
@@ -441,12 +474,12 @@ static void input(void)
         if ((e = plat_enc(EN_K1 + (int)i)) != 0)
             knob_turn((int)i, e);
     if ((e = plat_enc(EN_SELECT)) != 0) {      /* SEED: jede Raste ein neuer Wurf, ringsum */
-        int v = ((int)cur_p()[P_SEED] + (int)accel(EN_SELECT, e, 1, 3) + 128 * 4) % 128;
+        int v = (pget(P_SEED) + (int)accel(EN_SELECT, e, 1, 3) + 128 * 4) % 128;
         param_set(P_SEED, v);
         ui.redraw |= R_HEAD;
     }
     if ((e = plat_enc(EN_ALGO)) != 0) {        /* SCAN */
-        param_set(P_SCAN, (int)cur_p()[P_SCAN] + coarse(EN_ALGO, e));
+        param_set(P_SCAN, pget(P_SCAN) + coarse(EN_ALGO, e));
         ui.redraw |= R_HEAD;
     }
     if ((e = plat_enc(EN_PRESET)) != 0)        /* der Algorithmus */
@@ -863,10 +896,11 @@ static const char *fit(const char *s, const felucca_font_t *f, int32_t w, char *
 /* ---- die ganze Szene ---- */
 static void scene(uint32_t now)
 {
-    uint8_t *p = cur_p();
+    uint8_t p[FK_NP];
     int k, a = set.algo;
     char t[32];
     col3 gl = GOLD;
+    all_params(p);
     /* der Rahmen, die Langlöcher, der Titel */
     s_frame(3.5f, 9.5f, 236.5f, 230.5f, 6.0f, gl, 0.85f);
     slot(22.0f, 17.0f);
@@ -964,15 +998,15 @@ static void scene(uint32_t now)
             s_ctext(120.0f, 175.0f, &FONT_SERIF_XS, fit(l2, &FONT_SERIF_XS, 60, v2), C_RED, 0);
     }
     /* die Seiten: vier Kästchen, die aktive rot */
-    for (k = 0; k < NPAGES; k++) {
-        float cx = 39.0f + (float)k * 54.0f;
-        int on = k == ui.page;
-        if (!vis(cx - 26, 194, cx + 26, 212))
+    for (k = 0; k < NTABS; k++) {
+        float cx = 30.0f + (float)k * 45.0f;
+        int on = k == page_tab(ui.page);
+        if (!vis(cx - 23, 194, cx + 23, 212))
             continue;
-        s_frame(cx - 23.5f, 196.5f, cx + 23.5f, 209.5f, 1.0f, on ? RED : GOLD_DIM, on ? 0.95f : 0.7f);
+        s_frame(cx - 21.0f, 196.5f, cx + 21.0f, 209.5f, 1.0f, on ? RED : GOLD_DIM, on ? 0.95f : 0.7f);
         s_ctext(cx, 198.0f, &FONT_SERIF_XS, PAGE_NAME[k], on ? C_RED : C_GOLD_DIM, 1);
         if (on)
-            s_bloom(cx, 203.0f, 18.0f, RED, 0.10f);
+            s_bloom(cx, 203.0f, 16.0f, RED, 0.10f);
     }
     /* unten: HOLD und FREEZE als LEDs, der Name, der Akku, die Oktave */
     {
@@ -985,6 +1019,8 @@ static void scene(uint32_t now)
             s_disc(54.0f, 221.0f, 2.3f, RED, 1.0f);
             s_bloom(54.0f, 221.0f, 7.0f, RED, 0.5f);
             s_text(60.0f, 216.0f, &FONT_SERIF_XS, frz ? "FREEZE" : "ECO", C_RED, 1);
+        } else if (set.verb[P_VMIX - FK_NPA] > 0) {   /* der Hall: sein Modus, klein */
+            s_text(54.0f, 216.0f, &FONT_SERIF_XS, FK_VMODE_NAME[fk_vmode_of(set.verb[P_VMODE - FK_NPA])], C_GOLD_DIM, 1);
         }
         if (vis(150, 212, 192, 230)) {
             t[0] = 0;
@@ -1135,10 +1171,17 @@ void app_init(void)
         m.comb[i] = mem_cb[i];
     m.wt = mem_wt;
     m.sn = mem_sn;
+    m.rv = mem_rv;
+    m.rva = mem_rva;
+    m.sh = mem_sh;
     settings_load();
     fk_init(&m);
     fk_algo(set.algo);
-    fk_params(cur_p());
+    {
+        uint8_t o[FK_NP];
+        all_params(o);
+        fk_params(o);
+    }
     fk_hold(set.hold);
     for (i = 0; i < NKEYS; i++)
         ui.key_note[i] = -1;
@@ -1162,8 +1205,10 @@ static void midi_in(void)                /* im Audio-Interrupt: Noten, Pitch Ben
         else if (ty == 0xB0u && (d1 == 123u || d1 == 120u))
             fk_all_off();
         else if (ty == 0xB0u && d1 == 1u) {
+            uint8_t o[FK_NP];
             set.p[set.algo][P_MORPH] = (uint8_t)d2;
-            fk_params(set.p[set.algo]);
+            all_params(o);
+            fk_params(o);
         }
     }
 }
@@ -1188,10 +1233,10 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 
 void app_panic(void) { fk_panic(); }
 
-void app_splash(void)
+void app_splash(void)                   /* das erste Bild der Eröffnung: sie läuft danach nahtlos weiter */
 {
     lcd_fill(0, 0, 240, 240, RGB(14, 13, 12));
-    intro_draw(3.0f);
+    intro_draw(0.0f);
 }
 
 void app_ui_init(void)
@@ -1326,10 +1371,12 @@ int app_expect(const char *what, int *got)
         *got = set_dirty;
     else if (!strcmp(what, "eco"))
         *got = fk_eco_on();
+    else if (!strncmp(what, "level_x1000_ge", 14))   /* level_x1000_geN: der Ausgang mindestens N/1000 (1) */
+        *got = (int)(fk_level() * 1000.0f) >= atoi(what + 14);
     else if (!strcmp(what, "level_x1000"))
         *got = (int)(fk_level() * 1000.0f);
     else if (what[0] == 'p' && what[1] >= '0' && what[1] <= '9')
-        *got = cur_p()[atoi(what + 1)];
+        *got = pget(atoi(what + 1) % FK_NP);
     else
         return 0;
     return 1;

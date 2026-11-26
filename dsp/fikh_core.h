@@ -19,6 +19,7 @@
  *   FORM   vom klaren Echo zum diffusen Hall
  *   FIELD  Filter (links Tiefpass, rechts Hochpass, Mitte offen)
  *   CELL   Frequenzverschiebung (Algorithmus 9: Tonhöhenverschiebung)
+ * Danach ein Ambient-Hall (fikh_verb.c) nach dem Vorbild des Walrus Audio SLÖER: DREAM, DARK, RISE, LIGHT, RAIN.
  * Die Engine rechnet mit float bei 44,1 kHz, Stereo. */
 #pragma once
 #include <stdint.h>
@@ -34,8 +35,15 @@ enum {
     P_FIELD, P_CELL, P_ATK, P_REL,       /* FIELD */
     P_GLIDE, P_DRIFT, P_WIDTH, P_LEVEL,  /* EDIT */
     P_SEED, P_SCAN,                      /* SELECT, ALGORITHM */
+    FK_NPA,                              /* bis hier: je Algorithmus; danach der Hall, für alle gleich */
+    P_VMIX = FK_NPA, P_VDECAY, P_VX, P_VFILT,   /* VERB */
+    P_VMODE, P_VDEPTH, P_VRATE, P_VSTRETCH,     /* VERB 2 */
     FK_NP
 };
+#define FK_NPV (FK_NP - FK_NPA)
+extern const uint8_t FK_VERB_INIT[FK_NPV];
+extern const char *const FK_VMODE_NAME[5];
+int fk_vmode_of(int v);                  /* der Modus des Halls aus dem Wert von P_VMODE */
 
 typedef struct {
     const char *name;                    /* wie auf dem Panel */
@@ -49,7 +57,7 @@ typedef struct {
     const char *name;                    /* kurz, groß */
     const char *sub;                     /* was er ist */
     uint8_t proc;
-    uint8_t init[FK_NP];                 /* wie er anfängt */
+    uint8_t init[FK_NPA];                /* wie er anfängt */
 } fk_algo_info;
 extern const fk_algo_info FK_ALGOS[FK_NALGO];
 
@@ -61,7 +69,10 @@ extern const fk_algo_info FK_ALGOS[FK_NALGO];
 #define FK_WT_LEN 256u
 #define FK_WT_WAVES 8u
 #define FK_WT_SETS 4u
-#define FK_SIN_N 2048u                   /* die Sinustabelle (float, +1) */
+#define FK_SIN_N 1024u                   /* die Sinustabelle (float, +1) */
+#define FK_RV_N 16560u                   /* der Hall: acht Leitungen (int16) */
+#define FK_RVA_N 2288u                   /* seine Allpässe (float) */
+#define FK_SH_N 2048u                    /* der Oktavierer (int16) */
 typedef struct {
     int16_t *dl[2];
     float *ch[2];
@@ -69,6 +80,9 @@ typedef struct {
     float *comb[4];
     float *wt;                           /* FK_WT_SETS * FK_WT_WAVES * FK_WT_LEN */
     float *sn;                           /* FK_SIN_N + 1 */
+    int16_t *rv;                         /* FK_RV_N */
+    float *rva;                          /* FK_RVA_N */
+    int16_t *sh;                         /* FK_SH_N */
 } fk_mem;
 
 void fk_init(const fk_mem *m);

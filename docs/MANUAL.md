@@ -3,9 +3,9 @@
 FIKH-S is an experimental synth for the M-VAVE FM-1 by **swtdr34mz**, after the concept of the Forge TME VHIKK X, for
 drones, basses, textures and noise. A **generator** (one of nine algorithms) runs through a filter (**FIELD**) and a
 VCA into a **processor**: a stereo delay with a frequency shifter in its feedback, metallic (**DUNGEON**) or soft and
-diffuse (**REFLEKTA**).
+diffuse (**REFLEKTA**), then an ambient reverb after the Walrus Audio SLÖER.
 
-Unofficial: not made or supported by Forge TME or M-VAVE. No code, sound or artwork of Forge TME is used.
+Unofficial: not made or supported by Forge TME, Walrus Audio or M-VAVE. No code, sound or artwork of theirs is used.
 
 ![FIKH-S](../site/img/screen-main.png)
 
@@ -27,12 +27,13 @@ pages, HOLD (and FREEZE or ECO), the octave and the battery.
 | FX | page **PROC**: MIX, FEED, FORM, TIME |
 | ENV | page **FIELD**: FIELD, CELL, ATTACK, RELEASE |
 | EDIT | page **MOTION**: GLIDE, DRIFT, WIDTH, LEVEL |
+| LFO | page **VERB**: MIX, DECAY, X, FILTER; again **VERB 2**: MODE, DEPTH, RATE, STRETCH |
 | SELECT | **SEED**: every detent a new throw |
 | ALGORITHM | **SCAN**, coarse, for playing live |
 | PRESET | the algorithm, 1 to 9; each keeps its own knobs |
 | PLAY | **HOLD**: the VCA stays open, a drone; the keys only move BASIS |
 | REC | **DICE**: a new SEED and SCAN; held 1 s, MORPH, FUSE, FORM and TIME too |
-| ARP | **FREEZE**: the processor keeps what it has, forever; new notes sound dry over it |
+| ARP | **FREEZE**: the processor and the reverb keep what they have, forever; new notes sound dry over it |
 | SEQ held 1 s | the algorithm back to how it came |
 | SAVE | save (otherwise saved by itself when it is quiet: a write stops the sound for a moment) |
 | OCT- / OCT+ | the octave of the keys (-2 .. +2) |
@@ -61,6 +62,21 @@ The bipolar knobs (WARP, SPAN, FUSE, FEED, FIELD, CELL) are neutral at their cen
 | **DRIFT** | every oscillator wanders on its own (up to ±30 cents); MORPH and SCAN breathe with it |
 | **WIDTH** | the stereo width |
 | **LEVEL** | the algorithm's level |
+
+## The reverb (VERB)
+
+An ambient reverb after the Walrus Audio SLÖER at the end of the chain, the same for every algorithm (like a pedal):
+eight delay lines feeding back into each other, slowly swimming in their lengths, diffused first. MIX (fully left:
+off), DECAY 0.8 s to 30 s and INF fully right, FILTER its tone, DEPTH and RATE how it swims, STRETCH like a lower
+sample rate (longer, darker tails, artefacts). MODE, one detent each:
+
+| MODE | X |
+| --- | --- |
+| DREAM | lush; X a vibrato over the pad, FREEZE latches it |
+| DARK | X: an octave down fed into the reverb |
+| RISE | swells in after every note; X: how slowly (0.15 s to 6 s) |
+| LIGHT | bright; X: an octave-up shimmer climbing in the tail |
+| RAIN | little diffusion, the taps heard as echoes; X: more diffusion |
 
 ## The algorithms (BANK 1)
 

@@ -1,0 +1,44 @@
+# FIKH-S: the reverb (VERB, LFO; again VERB 2): global for every algorithm, five modes, FREEZE holds it
+wait 3000
+tap LFO
+expect page 4
+shot verb.png
+tap LFO
+expect page 5
+expect p22 12
+# MODE: one detent, one mode (DREAM, DARK, RISE, LIGHT, RAIN)
+turn K1 1 120
+expect p22 37
+turn K1 3 120
+expect p22 114
+turn K1 1 120
+expect p22 114
+turn K1 -1 120
+expect p22 88
+wait 200
+shot verb2.png
+tap LFO
+expect page 4
+# MIX up, a drone through it
+turn K1 20 120
+expect p18 64
+tap PLAY
+key 4 down 100
+wait 200
+key 4 up
+wav verb.wav
+wait 3000
+wavstop
+expect peak_db_min -40
+# the reverb stays when the algorithm changes
+turn PRESET 1
+expect algo 1
+expect p18 64
+# FREEZE: the tail holds
+tap ARP
+expect freeze 1
+tap PLAY
+expect hold 0
+wait 3000
+expect level_x1000_ge5 1
+tap ARP
