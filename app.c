@@ -941,28 +941,57 @@ static int batt_pct(int lvl)
     raw = raw - 515;
     return raw < 0 ? 0 : raw > 100 ? 100 : (int)raw;
 }
+/* der Akku, fein gezeichnet: ein goldener Rahmen mit Fase und runden Ecken, dahinter dunkles Rauchglas, die rote
+ * Füllung als fünf LED-Segmente mit Verlauf (oben heller) und einem Glanzlicht, stufenlos bis aufs Pixel; der Pol als
+ * kleine goldene Kappe. Leer (unter 8 %) blinkt er; an USB ein goldener Blitz links daneben. x, y: links oben */
+#define BT_W 21.0f
+#define BT_H 11.0f
 static void battery(float x, float y, uint32_t now)
 {
-    int lvl = batt_level(), pct, usb;
-    float w;
-    if (lvl < 0 || !vis(x - 2, y - 2, x + 30, y + 10))
+    int lvl = batt_level(), pct, usb, i, j;
+    float w, iw = BT_W - 4.0f, ih = BT_H - 4.0f;
+    if (lvl < 0 || !vis(x - 12, y - 2, x + BT_W + 5, y + BT_H + 2))
         return;
     usb = lvl >= 4;
     pct = batt_pct(lvl);
-    w = 15.0f * (float)pct / 100.0f;
+    w = iw * (float)pct / 100.0f;
     if (!usb && pct < 8 && ((now / 500u) & 1u))
         w = 0.0f;
-    s_frame(x + 0.5f, y + 0.5f, x + 18.5f, y + 8.5f, 1.5f, GOLD, 0.9f);
-    s_rect(x + 19.0f, y + 3.0f, 2.0f, 3.0f, GOLD, 0.9f);
-    s_rect(x + 2.0f, y + 2.0f, 15.0f, 5.0f, RED_DIM, 1.0f);
-    if (w >= 1.0f)
-        s_rect(x + 2.0f, y + 2.0f, (float)(int)w, 5.0f, RED, 1.0f);
-    if (w > 0.5f)
-        s_bloom(x + 2.0f + w * 0.5f, y + 4.5f, 3.0f + w * 0.5f, RED, 0.15f);
-    if (usb) {
-        s_line(x + 26.0f, y + 0.5f, x + 24.0f, y + 4.5f, GOLD_HI, 0.95f);
-        s_line(x + 24.0f, y + 4.5f, x + 27.0f, y + 4.5f, GOLD_HI, 0.95f);
-        s_line(x + 27.0f, y + 4.5f, x + 25.0f, y + 8.5f, GOLD_HI, 0.95f);
+    /* der Körper: Schatten, Rahmen, die innere dunkle Kante (die Fase) */
+    s_frame(x + 1.0f, y + 1.5f, x + BT_W + 1.0f, y + BT_H + 1.5f, 2.5f, rgb3(0, 0, 0), 0.55f);
+    s_frame(x + 0.5f, y + 0.5f, x + BT_W + 0.5f, y + BT_H + 0.5f, 2.5f, GOLD, 0.95f);
+    s_frame(x + 1.5f, y + 1.5f, x + BT_W - 0.5f, y + BT_H - 0.5f, 1.6f, rgb3(70, 56, 30), 0.7f);
+    /* der Pol: eine kleine Kappe, oben heller */
+    for (j = 0; j < 5; j++)
+        s_rect(x + BT_W + 1.0f, y + 3.0f + (float)j, 2.0f, 1.0f, mix3(GOLD_HI, GOLD_DIM, (float)j / 4.0f), 0.95f);
+    s_disc(x + BT_W + 2.6f, y + 5.5f, 1.2f, GOLD, 0.6f);
+    /* das Glas und die Füllung, Pixel für Pixel */
+    for (j = 0; j < (int)ih; j++)
+        for (i = 0; i < (int)iw; i++) {
+            float px = x + 2.0f + (float)i, py = y + 2.0f + (float)j, t = (float)j / (ih - 1.0f), cov, seg;
+            col3 glass = mix3(rgb3(44, 10, 12), rgb3(22, 5, 7), t), fill;
+            if (!vis(px, py, px + 1.0f, py + 1.0f))
+                continue;
+            px_blend((int32_t)SX(px), (int32_t)py, glass, 1.0f);
+            cov = sat01(w - (float)i);
+            seg = fmod_pos((float)i + 0.5f, iw / 5.0f);            /* fünf Segmente, dazwischen feine Fugen */
+            if (seg < 0.7f && i > 0)
+                cov *= 0.35f;
+            if (cov <= 0.0f)
+                continue;
+            fill = mix3(rgb3(255, 120, 110), mix3(RED, rgb3(150, 12, 20), 0.35f), t);
+            px_blend((int32_t)SX(px), (int32_t)py, fill, cov);
+        }
+    if (w > 0.5f) {
+        for (i = 0; i < (int)w && i < (int)iw; i++)                  /* das Glanzlicht oben */
+            px_glow((int32_t)SX(x + 2.0f + (float)i), (int32_t)(y + 2.0f), rgb3(255, 255, 255), 0.16f);
+        s_bloom(x + 2.0f + w * 0.5f, y + BT_H * 0.5f, 3.5f + w * 0.6f, RED, 0.13f);
+    }
+    if (usb) {                                                       /* an USB: ein Blitz links daneben */
+        float bx = x - 8.0f, by = y + 0.5f;
+        s_line(bx + 3.0f, by, bx + 0.5f, by + 5.0f, GOLD_HI, 0.95f);
+        s_line(bx + 0.5f, by + 5.0f, bx + 4.0f, by + 5.0f, GOLD_HI, 0.95f);
+        s_line(bx + 4.0f, by + 5.0f, bx + 1.5f, by + 10.0f, GOLD_HI, 0.95f);
     }
 }
 
@@ -1163,15 +1192,15 @@ static void scene(uint32_t now)
         } else if (set.verb[P_VMIX - FK_NPA] > 0) {   /* der Hall: sein Modus, klein */
             s_text(54.0f, 216.0f, &FONT_SERIF_XS, FK_VMODE_NAME[fk_vmode_of(set.verb[P_VMODE - FK_NPA])], C_GOLD_DIM, 1);
         }
-        if (vis(150, 212, 192, 230)) {
+        if (vis(150, 212, 200, 230)) {           /* die Oktave: rechtsbündig vor dem Akku */
             t[0] = 0;
             text_cat(t, "OCT ");
             if (set.oct > 2)
                 text_cat(t, "+");
             int_text((int)set.oct - 2, t);
-            s_text(156.0f, 216.0f, &FONT_SERIF_XS, t, set.oct != 2 ? C_RED : C_GOLD_DIM, 1);
+            s_text(188.0f - (float)text_w(&FONT_SERIF_XS, t), 216.0f, &FONT_SERIF_XS, t, set.oct != 2 ? C_RED : C_GOLD_DIM, 1);
         }
-        battery(194.0f, 216.0f, now);
+        battery(201.0f, 215.5f, now);          /* rechts, gespiegelt zu HOLD links */
     }
     if (vis(80, 224, 160, 240)) {         /* der Name unten, im Rahmen über der Linie (wie FORGE TME am Modul) */
         float w = (float)s_text_w(&FONT_SERIF_XS, "SWTDR34MZ") + 16.0f;
