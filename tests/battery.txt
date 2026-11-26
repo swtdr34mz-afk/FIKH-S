@@ -1,0 +1,14 @@
+# FIKH-S: the battery in the corner (full, half, empty blinking, USB)
+wait 3000
+expect batt5
+wait 100
+shot batt_full.png
+expect batt3
+wait 100
+shot batt_low.png
+expect batt2
+wait 600
+shot batt_empty.png
+expect batt6
+wait 100
+shot batt_usb.png

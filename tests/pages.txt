@@ -1,0 +1,29 @@
+# FIKH-S: the pages, a bipolar knob snapping at its centre, the value text
+wait 3000
+tap FX
+expect page 1
+tap ENV
+expect page 2
+# CELL (K2) from 64 (off): the centre holds for two detents, the third moves on; back down it stops there again
+turn K2 3 120
+expect p9 65
+turn K2 -2 120
+expect p9 64
+turn K2 -1 120
+expect p9 64
+turn K2 -1 120
+expect p9 63
+shot cell.png
+tap EDIT
+expect page 3
+tap HOME
+expect page 0
+# MIDI: a note on, CC 1 = MORPH, note off
+midi 90 3C 64
+wait 50
+expect note 60
+midi B0 01 40
+wait 50
+expect p2 64
+midi 80 3C 00
+wait 50

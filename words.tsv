@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MPL-2.0
+# FIKH-S words for a screen reader (fm1-reader): the text on the screen <TAB> what to say.
+# url: https://swtdr34mz-afk.github.io/FIKH-S/words/
+FIKH-S	fick s
+GEN	generator
+PROC	processor
+LP	low pass
+HP	high pass
+HZ	hertz
+MS	milliseconds
+ST	semitones
+DB	decibels
