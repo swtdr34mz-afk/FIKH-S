@@ -30,6 +30,7 @@ typedef struct {
 
 typedef struct {                         /* die geglätteten Werte: bipolar -1..1, sonst 0..1 */
     float warp, span, morph, fuse, mix, feed, form, time, field, cell, atk, rel, glide, drift, width, level, scan;
+    float vmix, vdecay, vx, vfilt, vdepth, vrate, vstretch;
 } fk_vals;
 
 static struct {
@@ -71,6 +72,7 @@ static struct {
     float dcx[2], dcy[2], lvl, wlvl, duck_g;
     int duck, eco, freeze;
     float frz;                           /* FREEZE, weich ein- und ausgeblendet (0..1) */
+    int rv_trig;                         /* eine neue Note (RISE) */
 } E;
 
 static float fk_time_ms(float u);
@@ -79,6 +81,7 @@ static float fk_atk_ms(float u);
 #include "fikh_tables.c"
 #include "fikh_gen.c"
 #include "fikh_proc.c"
+#include "fikh_verb.c"
 
 /* ------------------------------------------------------------------ SEED --- */
 static void reseed(int s)
@@ -117,6 +120,7 @@ void fk_note_on(int note, int vel)
         E.nstack = 15;
     }
     E.stack[E.nstack++] = note;
+    E.rv_trig = 1;
     if (E.note < 0)
         E.pitch = (float)note;           /* die erste Note: kein Gleiten von irgendwo */
     E.note = note;
@@ -194,6 +198,9 @@ void fk_init(const fk_mem *m)
     fk_zero(E.m.ch[0], FK_CH_N * sizeof(float));
     fk_zero(E.m.ch[1], FK_CH_N * sizeof(float));
     fk_zero(E.m.ap, FK_AP_N * sizeof(float));
+    fk_zero(E.m.rv, FK_RV_N * sizeof(int16_t));
+    fk_zero(E.m.rva, FK_RVA_N * sizeof(float));
+    fk_zero(E.m.sh, FK_SH_N * sizeof(int16_t));
     for (i = 0; i < 4; i++)
         fk_zero(E.m.comb[i], FK_CB_N * sizeof(float));
     fk_sin_tab = E.m.sn;
@@ -201,6 +208,7 @@ void fk_init(const fk_mem *m)
         E.m.sn[i] = fm_sin_turns((float)i / (float)FK_SIN_N);
     wt_build(E.m.wt);
     proc_init();
+    verb_init();
     E.algo_next = -1;
     E.note = -1;
     E.xf = 1.0f;
@@ -211,7 +219,8 @@ void fk_init(const fk_mem *m)
     for (c = 0; c < 2; c++)
         for (i = 0; i < 8; i++)
             E.ph[c][i] = (float)((i * 37) % 64) / 64.0f;   /* links und rechts in Phase: breit nur durch die Drift */
-    fk_copy(E.raw, FK_ALGOS[0].init, FK_NP);
+    fk_copy(E.raw, FK_ALGOS[0].init, FK_NPA);
+    fk_copy(E.raw + FK_NPA, FK_VERB_INIT, FK_NPV);
     targets();
     for (i = 0; i < FK_NP; i++)
         E.sm[i] = E.tgt[i];
@@ -296,6 +305,13 @@ static void block_controls(int n)
     E.v.drift = dk;
     E.v.width = E.sm[P_WIDTH];
     E.v.level = E.sm[P_LEVEL];
+    E.v.vmix = E.sm[P_VMIX];
+    E.v.vdecay = E.sm[P_VDECAY];
+    E.v.vx = E.sm[P_VX];
+    E.v.vfilt = E.sm[P_VFILT];
+    E.v.vdepth = E.sm[P_VDEPTH];
+    E.v.vrate = E.sm[P_VRATE];
+    E.v.vstretch = E.sm[P_VSTRETCH];
     E.v.scan = fk_clamp(E.sm[P_SCAN] + E.mac_v[1] * 0.14f * dk, 0.0f, 1.0f);
     for (c = 0; c < 2; c++)
         for (i = 0; i < 4; i++)
@@ -347,6 +363,7 @@ void fk_render(float *l, float *r, int n)
         fk_svf_set(&E.bpc, E.f0 * 3.0f * fm_exp2f(E.v.morph * 2.0f), 0.75f);
     E.shift_hz = E.algo == 8 ? 0.0f : fk_cell_hz(E.v.cell);
     proc_block(gl, gr, l, r, n);
+    verb_block(l, r, n);
     /* der Ausgang: Gleichanteil weg, Breite, Pegel, weich begrenzt */
     lg = fm_exp2f(fk_level_db(E.v.level) * 0.1660964f) * 0.9f;
     wd = E.v.width * 1.1f;

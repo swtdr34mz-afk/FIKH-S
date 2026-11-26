@@ -12,7 +12,8 @@
 #include "fikh_core.h"
 
 static int16_t dl0[FK_DL_N], dl1[FK_DL_N];
-static float ch0[FK_CH_N], ch1[FK_CH_N], ap[FK_AP_N], cb[4][FK_CB_N], wt[FK_WT_SETS * FK_WT_WAVES * FK_WT_LEN], sn[FK_SIN_N + 1];
+static float ch0[FK_CH_N], ch1[FK_CH_N], ap[FK_AP_N], cb[4][FK_CB_N], wt[FK_WT_SETS * FK_WT_WAVES * FK_WT_LEN], sn[FK_SIN_N + 1], rva[FK_RVA_N];
+static int16_t rv[FK_RV_N], sh[FK_SH_N];
 
 static void wav_head(FILE *f, int frames)
 {
@@ -41,7 +42,7 @@ int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : ".";
     float secs = argc > 2 ? (float)atof(argv[2]) : 12.0f;
-    fk_mem m = {{dl0, dl1}, {ch0, ch1}, ap, {cb[0], cb[1], cb[2], cb[3]}, wt, sn};
+    fk_mem m = {{dl0, dl1}, {ch0, ch1}, ap, {cb[0], cb[1], cb[2], cb[3]}, wt, sn, rv, rva, sh};
     int a;
     for (a = 0; a < FK_NALGO; a++) {
         char path[256];
@@ -55,7 +56,8 @@ int main(int argc, char **argv)
             return 1;
         wav_head(f, frames);
         fk_init(&m);
-        memcpy(p, FK_ALGOS[a].init, FK_NP);
+        memcpy(p, FK_ALGOS[a].init, FK_NPA);
+        memcpy(p + FK_NPA, FK_VERB_INIT, FK_NPV);
         fk_algo(a);
         fk_params(p);
         fk_hold(1);

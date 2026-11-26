@@ -3,9 +3,11 @@
 FIKH-S ist ein experimenteller Synth für das M-VAVE FM-1 von **swtdr34mz**, nach dem Konzept des Forge TME VHIKK X.
 Er macht Drones, Bässe, Texturen und Geräusche. Ein **Generator** (einer von neun Algorithmen) läuft durch ein
 Filter (**FIELD**) und einen VCA in einen **Prozessor**: ein Stereo-Delay mit einem Frequenzverschieber in der
-Rückkopplung, entweder metallisch (**DUNGEON**) oder weich und diffus (**REFLEKTA**).
+Rückkopplung, entweder metallisch (**DUNGEON**) oder weich und diffus (**REFLEKTA**). Ganz am Ende sitzt ein
+Ambient-Hall nach dem Vorbild des Walrus Audio SLÖER.
 
-Inoffiziell: nicht von Forge TME oder M-VAVE. Es steckt kein Code, kein Klang und keine Grafik von Forge TME darin.
+Inoffiziell: nicht von Forge TME, Walrus Audio oder M-VAVE. Es steckt kein Code, kein Klang und keine Grafik von ihnen
+darin.
 
 ![FIKH-S](../site/img/screen-main.png)
 
@@ -20,7 +22,8 @@ Inoffiziell: nicht von Forge TME oder M-VAVE. Es steckt kein Code, kein Klang un
 - **BASIS**: die Note, die klingt.
 - **Das Scope**: das echte Ausgangssignal.
 - **Die Anzeige darunter**: beim Drehen Name und Wert, sonst die Seite.
-- **Unten**: die vier Seiten, HOLD (und FREEZE oder ECO), die Oktave und der Akku.
+- **Unten**: die fünf Seiten, HOLD, daneben FREEZE oder ECO (sonst klein der Modus des Halls), die Oktave und der
+  Akku.
 
 ## Die Bedienung
 
@@ -31,12 +34,13 @@ Inoffiziell: nicht von Forge TME oder M-VAVE. Es steckt kein Code, kein Klang un
 | FX | Seite **PROC**: MIX, FEED, FORM, TIME |
 | ENV | Seite **FIELD**: FIELD, CELL, ATTACK, RELEASE |
 | EDIT | Seite **MOTION**: GLIDE, DRIFT, WIDTH, LEVEL |
+| LFO | Seite **VERB**: MIX, DECAY, X, FILTER; nochmal: **VERB 2**: MODE, DEPTH, RATE, STRETCH |
 | SELECT | **SEED**: jede Raste ein neuer Wurf |
 | ALGORITHM | **SCAN**: grob, damit man live schnell hinkommt |
 | PRESET | der Algorithmus 1 bis 9. Jeder Algorithmus behält seine eigenen Reglerstellungen |
 | PLAY | **HOLD** an/aus: der VCA bleibt offen, ein Drone. Die Tasten ändern dann nur noch BASIS |
 | REC | **WÜRFELN**: neuer SEED und neuer SCAN. 1 s halten: dazu MORPH, FUSE, FORM und TIME |
-| ARP | **FREEZE** an/aus: der Prozessor hält, was er gerade hat, endlos. Neue Noten klingen trocken darüber |
+| ARP | **FREEZE** an/aus: Prozessor und Hall halten, was sie gerade haben, endlos. Neue Noten klingen trocken darüber |
 | SEQ 1 s halten | der Algorithmus zurück auf seine Werkseinstellung |
 | SAVE | speichern. Sonst speichert FIKH-S von selbst, sobald es still ist (ein Schreibvorgang unterbricht den Klang kurz) |
 | OCT- / OCT+ | die Oktave der Tasten (-2 bis +2) |
@@ -66,6 +70,32 @@ Rasten bleibt der Wert stehen, erst die dritte geht weiter.
 | **DRIFT** | jeder Oszillator wandert für sich (bis ±30 Cent), MORPH und SCAN atmen langsam mit |
 | **WIDTH** | die Stereobreite |
 | **LEVEL** | die Lautstärke des Algorithmus |
+
+## Der Hall (VERB)
+
+Ein Ambient-Hall nach dem Vorbild des Walrus Audio SLÖER, ganz am Ende der Kette. Er gilt für alle Algorithmen
+gleich, wie ein Pedal hinter dem Synth: Beim Wechsel des Algorithmus bleibt er, wie er ist. Innen: acht
+Verzögerungsleitungen, die sich gegenseitig rückkoppeln und langsam in ihrer Länge schweben; davor wird das Signal
+zerstreut.
+
+| Regler | Was er tut |
+| --- | --- |
+| **MIX** | wie viel Hall (ganz links aus) |
+| **DECAY** | wie lange er klingt, 0,8 s bis 30 s; ganz rechts **INF**: er hört nicht auf |
+| **X** | je nach MODE (siehe unten) |
+| **FILTER** | der Klang des Halls, von dunkel bis hell |
+| **MODE** | DREAM, DARK, RISE, LIGHT, RAIN (eine Raste, ein Modus) |
+| **DEPTH** | wie stark die Leitungen schweben (viel: der Hall wird unscharf, verstimmt) |
+| **RATE** | wie schnell sie schweben |
+| **STRETCH** | wie eine niedrigere Abtastrate: längere, dunklere Fahnen mit Artefakten |
+
+| MODE | Was er ist | X |
+| --- | --- | --- |
+| **DREAM** | üppig, weich | ein Vibrato über der Fläche. Mit FREEZE (ARP) wird sie zum Pad |
+| **DARK** | tief | wie viel von einer Oktave tiefer in den Hall läuft |
+| **RISE** | schwillt nach jeder Note langsam an | wie lange er zum Anschwellen braucht (0,15 s bis 6 s) |
+| **LIGHT** | hell | Shimmer: eine Oktave höher, die sich in der Fahne immer weiter nach oben schraubt |
+| **RAIN** | wenig zerstreut: die Abgriffe sind als Echos zu hören | links Echos, rechts weich |
 
 ## Die Algorithmen (BANK 1)
 
@@ -102,6 +132,8 @@ Rasten bleibt der Wert stehen, erst die dritte geht weiter.
 - **Spiralen**: FEED nach links, CELL ein kleines Stück aus der Mitte.
 - **Würfeln, bis es passt**: REC tippen. Gefällt ein Wurf, merkt man sich die SEED-Nummer.
 - **Einfrieren und darüber spielen**: ARP (FREEZE), dann HOLD aus und mit kurzem RELEASE darüber spielen.
+- **Eine Kathedrale**: VERB auf DARK, X halb, DECAY weit rechts, STRETCH etwas auf.
+- **Aufsteigender Glanz**: VERB auf LIGHT, X weit auf, DECAY auf INF.
 
 ## Die Last
 

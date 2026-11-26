@@ -9,7 +9,12 @@ const fk_param_info FK_PARAMS[FK_NP] = {
     {"FIELD", 1}, {"CELL", 1}, {"ATTACK", 0}, {"RELEASE", 0},
     {"GLIDE", 0}, {"DRIFT", 0}, {"WIDTH", 0}, {"LEVEL", 0},
     {"SEED", 0}, {"SCAN", 0},
+    {"MIX", 0}, {"DECAY", 0}, {"X", 0}, {"FILTER", 0},
+    {"MODE", 0}, {"DEPTH", 0}, {"RATE", 0}, {"STRETCH", 0},
 };
+
+/* der Hall, wie er anfängt: DREAM, halb nass, lang, weich */
+const uint8_t FK_VERB_INIT[FK_NPV] = {44, 88, 40, 70, 12, 46, 40, 16};
 
 /*                                    WARP SPAN MORPH FUSE  MIX FEED FORM TIME  FIELD CELL ATK REL  GLD DRF WID LVL  SEED SCAN */
 const fk_algo_info FK_ALGOS[FK_NALGO] = {
@@ -162,6 +167,32 @@ const char *fk_value_text(int p, int v, char *t)
             vt_cat(t, "HZ");
         }
         break;
+    case P_VMODE: vt_cat(t, FK_VMODE_NAME[fk_vmode_of(v)]); break;
+    case P_VDECAY:
+        if (u > 0.985f) {
+            vt_cat(t, "INF");
+        } else {
+            float sec = 0.8f * fm_exp2f(u * 5.2f);
+            int d = (int)(sec * 10.0f + 0.5f);
+            vt_int(t, d / 10);
+            if (d < 100) {
+                vt_cat(t, ".");
+                vt_int(t, d % 10);
+            }
+            vt_cat(t, "S");
+        }
+        break;
+    case P_VRATE: {
+        float hz = 0.04f * fm_exp2f(u * 5.5f);
+        int c = (int)(hz * 100.0f + 0.5f);
+        vt_int(t, c / 100);
+        vt_cat(t, ".");
+        if (c % 100 < 10)
+            vt_cat(t, "0");
+        vt_int(t, c % 100);
+        vt_cat(t, "HZ");
+        break;
+    }
     case P_SEED:
         vt_cat(t, "#");
         if (v < 100)
