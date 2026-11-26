@@ -1,6 +1,6 @@
 # Credits
 
-FIKH-S by swtdr34mz. All of its own code (the nine generators, the processor, the screens) is written for this
+FIKH-S by swtdr34mz. All of its own code (the eighteen generators, the processors, the screens) is written for this
 project, and all sounds are synthesized in the firmware: no samples. The concept, the names of the controls and the
 look follow the Forge TME VHIKK X, the reverb's modes the Walrus Audio SLÖER; no code, sound or artwork of Forge TME
 or Walrus Audio is used.

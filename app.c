@@ -12,12 +12,14 @@
  *              EDIT  MOTION  GLIDE, DRIFT, WIDTH, LEVEL
  *              LFO   VERB    MIX, DECAY, X, FILTER; nochmal: MODE, DEPTH, RATE, STRETCH (der Hall, für alle gleich)
  *   SELECT     SEED (jede Raste ein neuer Wurf)          ALGORITHM  SCAN (grob, für live)
- *   PRESET     der Algorithmus 1..9 (BANK 1); jeder behält seine eigenen Regler
+ *   PRESET     der Algorithmus 1..18 (BANK 1: 1..9, BANK 2: 10..18); jeder behält seine eigenen Regler
  *   PLAY       HOLD: der VCA bleibt offen, ein Drone; die Tasten ändern nur noch BASIS
  *   REC        WÜRFELN: SEED und SCAN neu; 1 s halten: dazu MORPH, FUSE, FORM und TIME
  *   ARP        FREEZE: Delay und Hall halten, was sie haben (endlos), Neues klingt trocken darüber
  *   SEQ        1 s halten: der Algorithmus zurück auf seine Werkseinstellung
  *   SAVE       speichern (sonst automatisch, sobald es still ist)
+ *   SNAPSHOTS  SAVE halten + eine der ersten 8 weißen Tasten: der Klang dort abgelegt (Algorithmus, Regler, Hall,
+ *              Oktave); SEL halten + die Taste: zurückgeholt. Solange SEL oder SAVE gehalten ist, leuchten die belegten
  *   MIDI       Noten auf allen Kanälen, Pitch Bend ±2, CC 1 = MORPH */
 #include "fastmath.h"
 #include "fikh_core.h"
@@ -37,13 +39,27 @@ static float mem_rva[FK_RVA_N] __attribute__((section(".pool")));
 static int16_t mem_sh[FK_SH_N] __attribute__((section(".pool")));
 
 /* ------------------------------------------------------------- Speicher --- */
-#define SET_MAGIC 0x32484B46u            /* "FKH2": mit dem Hall */
+#define SET_MAGIC 0x33484B46u            /* "FKH3": BANK 2 und die Snapshots */
+#define SET_MAGIC_V2 0x32484B46u         /* "FKH2" (v0.2: neun Algorithmen, der Hall) wird übernommen */
+#define NSNAP 8
+typedef struct {
+    uint8_t used, algo, oct, rsv;
+    uint8_t p[FK_NPA];
+    uint8_t verb[FK_NPV];
+} snap_t;
 typedef struct {
     uint32_t magic;
-    uint8_t algo, oct, hold, rsv;
+    uint8_t algo, oct, hold, snap;       /* snap: der zuletzt geholte Snapshot (0: keiner, 1..8) */
     uint8_t p[FK_NALGO][FK_NPA];         /* jeder Algorithmus mit seinen Reglern */
     uint8_t verb[FK_NPV];                /* der Hall: für alle Algorithmen gleich */
+    snap_t snaps[NSNAP];
 } settings_t;
+typedef struct {                         /* (v0.2) */
+    uint32_t magic;
+    uint8_t algo, oct, hold, rsv;
+    uint8_t p[9][FK_NPA];
+    uint8_t verb[FK_NPV];
+} settings_v2_t;
 _Static_assert(sizeof(settings_t) <= PLAT_STORE_MAX, "die Einstellungen passen nicht in ein Speicherobjekt");
 static settings_t set;
 static uint8_t set_dirty;
@@ -62,8 +78,23 @@ static void settings_defaults(void)
 
 static void settings_load(void)
 {
-    int a, i, ok = plat_store_load(OBJ_SETTINGS, &set, sizeof set) == (int)sizeof set && set.magic == SET_MAGIC
-                   && set.algo < FK_NALGO && set.oct <= 4u && set.hold <= 1u;
+    int a, i, got = plat_store_load(OBJ_SETTINGS, &set, sizeof set), ok;
+    if (got == (int)sizeof(settings_v2_t) && set.magic == SET_MAGIC_V2) {   /* aus v0.2: alles bleibt, BANK 2 neu */
+        settings_v2_t o;
+        memcpy(&o, &set, sizeof o);
+        settings_defaults();
+        set.algo = o.algo < 9u ? o.algo : 0u;
+        set.oct = o.oct;
+        set.hold = o.hold;
+        memcpy(set.p, o.p, sizeof o.p);
+        memcpy(set.verb, o.verb, sizeof o.verb);
+        got = (int)sizeof set;
+    }
+    ok = got == (int)sizeof set && set.magic == SET_MAGIC && set.algo < FK_NALGO && set.oct <= 4u && set.hold <= 1u
+         && set.snap <= NSNAP;
+    for (i = 0; ok && i < NSNAP; i++)
+        if (set.snaps[i].used > 1u || set.snaps[i].algo >= FK_NALGO || set.snaps[i].oct > 4u)
+            ok = 0;
     for (a = 0; ok && a < FK_NALGO; a++)
         for (i = 0; i < FK_NPA; i++)
             if (set.p[a][i] > 127u)
@@ -138,6 +169,7 @@ static struct {
     int8_t key_note[NKEYS];
     uint32_t knob_at[4];                 /* wann jeder Regler zuletzt gedreht wurde (er leuchtet) */
     uint8_t rest[4];                     /* Rasten in der Mitte (bipolar) */
+    uint8_t snap_used;                   /* SEL / SAVE gehalten: eine Taste wurde benutzt */
     int read_p;                          /* der Parameter in der Anzeige (-1: der Name der Seite) */
     uint32_t read_until;
     char msg[2][24];
@@ -317,6 +349,50 @@ static void algo_set(int a)
 }
 
 /* WÜRFELN: SEED und SCAN neu (deep: dazu MORPH, FUSE, FORM, TIME); der Zufall aus der Zeit */
+/* ---- die Snapshots: ein ganzer Klang auf einer Taste ---- */
+static void snap_store(int s)
+{
+    snap_t *n = &set.snaps[s];
+    char t[8] = "SNAP ";
+    n->used = 1;
+    n->algo = set.algo;
+    n->oct = set.oct;
+    memcpy(n->p, set.p[set.algo], FK_NPA);
+    memcpy(n->verb, set.verb, FK_NPV);
+    set.snap = (uint8_t)(s + 1);
+    dirty();
+    t[5] = (char)('1' + s);
+    t[6] = 0;
+    app_say(t, "STORED");
+}
+
+static void snap_load(int s)
+{
+    snap_t *n = &set.snaps[s];
+    uint8_t o[FK_NP];
+    uint32_t f;
+    char t[8] = "SNAP ";
+    t[5] = (char)('1' + s);
+    t[6] = 0;
+    if (!n->used) {
+        app_say(t, "EMPTY");
+        return;
+    }
+    set.algo = n->algo;
+    set.oct = n->oct;
+    memcpy(set.p[set.algo], n->p, FK_NPA);
+    memcpy(set.verb, n->verb, FK_NPV);
+    set.snap = (uint8_t)(s + 1);
+    all_params(o);
+    f = plat_lock();
+    fk_algo(set.algo);                   /* (derselbe Algorithmus: die Regler gleiten hinüber) */
+    fk_params(o);
+    plat_unlock(f);
+    dirty();
+    ui.redraw |= R_ALL;
+    app_say(t, FK_ALGOS[set.algo].name);
+}
+
 static void dice(int deep)
 {
     static uint32_t r = 0x6A09E667u;
@@ -369,11 +445,41 @@ static void save_now(void)               /* leise blenden, dann schreiben (app_f
     fk_duck(1);
 }
 
+static void snap_store(int s);
+static void snap_load(int s);
+static const uint8_t SNAP_KEY[NSNAP] = {0, 2, 4, 6, 7, 9, 11, 12};   /* die ersten acht weißen Tasten */
+static int snap_of_key(uint32_t k)
+{
+    int i;
+    for (i = 0; i < NSNAP; i++)
+        if (SNAP_KEY[i] == k)
+            return i;
+    return -1;
+}
+static int snap_mode(void)               /* 1: SEL gehalten (laden), 2: SAVE gehalten (ablegen), 0: spielen */
+{
+    uint32_t b = plat_buttons();
+    return (b >> B_SAVE & 1u) ? 2 : (b >> B_SEL & 1u) ? 1 : 0;
+}
+
 static void keys_input(uint32_t keys)
 {
     uint32_t k;
+    int sm = snap_mode();
     for (k = 0; k < NKEYS; k++) {
         uint32_t bit = 1u << k;
+        if (sm && (keys & bit) && !(ui.keys & bit)) {   /* SEL / SAVE gehalten: die Taste ist ein Snapshot */
+            int s = snap_of_key(k);
+            ui.snap_used = 1;
+            if (s >= 0) {
+                if (sm == 2)
+                    snap_store(s);
+                else
+                    snap_load(s);
+            }
+            ui.key_note[k] = -1;
+            continue;
+        }
         if ((keys & bit) && !(ui.keys & bit)) {
             int note = iclamp(key_base() + (int)k, 0, 127);
             ui.key_note[k] = (int8_t)note;
@@ -413,8 +519,10 @@ static void button(uint32_t i)
         app_say("FREEZE", on ? "ON" : "OFF");   /* (Delay und Hall) */
         break;
     }
-    case B_SAVE:
-        save_now();
+    case B_SAVE:                         /* SAVE: losgelassen ohne Taste: speichern; mit Taste: ein Snapshot */
+    case B_SEL:
+        ui.snap_used = 0;
+        ui.redraw |= R_READ;
         break;
     case B_OCTDN:
     case B_OCTUP: {
@@ -428,7 +536,6 @@ static void button(uint32_t i)
         ui.redraw |= R_FOOT;
         break;
     }
-    case B_SEL:
     case B_GLO:
         app_say("FIKH-S", "HOME FX ENV EDIT LFO");
         break;
@@ -439,6 +546,16 @@ static void button(uint32_t i)
 static void held_buttons(uint32_t btn)
 {
     uint32_t now = plat_ms();
+    if (!(btn >> B_SAVE & 1u) && (ui.btn >> B_SAVE & 1u)) {   /* SAVE losgelassen */
+        if (!ui.snap_used)
+            save_now();
+        ui.redraw |= R_READ;
+    }
+    if (!(btn >> B_SEL & 1u) && (ui.btn >> B_SEL & 1u)) {
+        if (!ui.snap_used)
+            app_say("SNAPSHOTS", "SEL/SAVE + KEY");
+        ui.redraw |= R_READ;
+    }
     if (ui.rec_t) {
         if (!(btn >> B_REC & 1u)) {
             dice(0);
@@ -505,6 +622,16 @@ static void lights(void)
         btn |= 1u << B_REC;
     if (set.oct != 2)
         btn |= 1u << (set.oct > 2 ? B_OCTUP : B_OCTDN);
+    if (snap_mode()) {                   /* SEL / SAVE gehalten: die belegten Snapshot-Tasten, der letzte blinkt */
+        uint32_t on = 0, i;
+        for (i = 0; i < NSNAP; i++)
+            if (set.snaps[i].used && !(set.snap == i + 1u && ((now / 200u) & 1u)))
+                on |= 1u << SNAP_KEY[i];
+        for (i = 0; i < NSNAP; i++)
+            lit |= 1u << SNAP_KEY[i];
+        plat_lights(btn | ui.btn, on, dimb & ~(1u << B_PLAY), lit, 1);
+        return;
+    }
     for (k = 0; k < NKEYS; k++)
         if ((key_base() + (int)k) % 12 == 0)
             lit |= 1u << k;
@@ -936,12 +1063,13 @@ static void scene(uint32_t now)
         led_window(164.0f, 30.0f, 50.0f, 16.0f, (float)p[P_SCAN] / 127.0f, 0);
         label_pale(189.0f, 50.0f, "SCAN");
     }
-    toggle(103.0f, 40.0f, a / 3);
-    toggle(137.0f, 40.0f, a % 3);
-    for (k = 0; k < 3; k++) {             /* die Bank-LEDs: Bank 1 leuchtet */
+    toggle(103.0f, 40.0f, (a % FK_BANK) / 3);
+    toggle(137.0f, 40.0f, (a % FK_BANK) % 3);
+    for (k = 0; k < 3; k++) {             /* die Bank-LEDs: die Bank leuchtet */
         float yy = 31.0f + (float)k * 6.0f;
-        s_rect(116.0f, yy, 8.0f, 3.0f, k == 0 ? RED : RED_DIM, 1.0f);
-        if (k == 0)
+        int on = k == a / FK_BANK;
+        s_rect(116.0f, yy, 8.0f, 3.0f, on ? RED : RED_DIM, 1.0f);
+        if (on)
             s_bloom(120.0f, yy + 1.5f, 6.0f, RED, 0.35f);
     }
     if (vis(60, 54, 180, 82)) {
@@ -949,7 +1077,7 @@ static void scene(uint32_t now)
         if (a + 1 < 10)
             text_cat(t, "0");
         int_text(a + 1, t);
-        s_ctext(120.0f, 56.0f, &FONT_SERIF_XS, "BANK 1", C_GOLD_DIM, 1);
+        s_ctext(120.0f, 56.0f, &FONT_SERIF_XS, a < FK_BANK ? "BANK 1" : "BANK 2", C_GOLD_DIM, 1);
         s_text(66.0f, 66.0f, &FONT_SERIF_S, t, C_RED, 0);
         s_ctext(124.0f, 66.0f, &FONT_SERIF_S, FK_ALGOS[a].name, C_GOLD_HI, 1);
     }
@@ -980,7 +1108,11 @@ static void scene(uint32_t now)
     if (vis(84, 156, 156, 192)) {
         const char *l1, *l2;
         char v[24] = "", v1[24], v2[24];
-        if (now < ui.read_until && ui.read_p >= 0) {
+        int sm = snap_mode();
+        if (sm) {                         /* SEL / SAVE gehalten: die acht Plätze */
+            l1 = sm == 2 ? "STORE SNAP" : "LOAD SNAP";
+            l2 = "";
+        } else if (now < ui.read_until && ui.read_p >= 0) {
             l1 = FK_PARAMS[ui.read_p].name;
             l2 = fk_value_text(ui.read_p, p[ui.read_p], v);
         } else if (now < ui.msg_until) {
@@ -992,7 +1124,16 @@ static void scene(uint32_t now)
         }
         s_frame(88.5f, 158.5f, 151.5f, 188.5f, 2.0f, GOLD, 0.8f);
         s_ctext(120.0f, 161.0f, &FONT_SERIF_XS, fit(l1, &FONT_SERIF_XS, 60, v1), C_GOLD, 1);
-        if (text_w(&FONT_SERIF_S, l2) <= 60)
+        if (sm) {
+            int i;
+            for (i = 0; i < NSNAP; i++) {        /* acht LEDs: belegt gold, der letzte rot */
+                float x = 96.0f + (float)i * 6.9f;
+                int cur = set.snap == (uint8_t)(i + 1), used = set.snaps[i].used;
+                s_disc(x, 178.0f, 2.2f, cur && used ? RED : used ? GOLD : rgb3(40, 34, 24), 1.0f);
+                if (cur && used)
+                    s_bloom(x, 178.0f, 6.0f, RED, 0.45f);
+            }
+        } else if (text_w(&FONT_SERIF_S, l2) <= 60)
             s_ctext(120.0f, 173.0f, &FONT_SERIF_S, l2, C_RED, 0);
         else
             s_ctext(120.0f, 175.0f, &FONT_SERIF_XS, fit(l2, &FONT_SERIF_XS, 60, v2), C_RED, 0);
@@ -1369,6 +1510,10 @@ int app_expect(const char *what, int *got)
         *got = set.oct;
     else if (!strcmp(what, "dirty"))
         *got = set_dirty;
+    else if (!strcmp(what, "snap"))
+        *got = set.snap;
+    else if (!strncmp(what, "snapused", 8))  /* snapusedN: Platz N (1..8) belegt */
+        *got = set.snaps[(atoi(what + 8) - 1) & 7].used;
     else if (!strcmp(what, "eco"))
         *got = fk_eco_on();
     else if (!strncmp(what, "level_x1000_ge", 14))   /* level_x1000_geN: der Ausgang mindestens N/1000 (1) */

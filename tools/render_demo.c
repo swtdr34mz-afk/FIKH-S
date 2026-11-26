@@ -61,7 +61,7 @@ int main(int argc, char **argv)
         fk_algo(a);
         fk_params(p);
         fk_hold(1);
-        fk_note_on(43, 100);              /* G2: ein Drone */
+        fk_note_on(a == 16 ? 31 : 43, 100);   /* G2 (FOLD BASS: G1): ein Drone */
         t0 = (double)clock();
         while (done < frames) {
             float l[128], r[128];
