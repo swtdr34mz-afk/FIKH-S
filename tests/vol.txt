@@ -1,0 +1,24 @@
+# FIKH-S: VOL (GLO): the windows show the output; GLO held 1 s: TIME global / per algorithm
+wait 3000
+tap PLAY
+tapkey 7 100
+wait 500
+tap GLO
+wait 400
+shot vol.png
+tap GLO
+# TIME global: TIME follows from one algorithm to the next
+press GLO
+wait 1100
+release GLO
+tap FX
+turn K4 5 120
+expect p7 71
+turn PRESET 1
+expect algo 1
+expect p7 71
+# per algorithm again: each its own
+press GLO
+wait 1100
+release GLO
+expect p7 78

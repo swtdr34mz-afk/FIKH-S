@@ -1,7 +1,7 @@
 # FIKH-S – Manual
 
 FIKH-S is an experimental synth for the M-VAVE FM-1 by **swtdr34mz**, after the concept of the Forge TME VHIKK X, for
-drones, basses, textures and noise. A **generator** (one of eighteen algorithms in two banks) runs through a filter (**FIELD**) and a
+drones, basses, textures and noise. A **generator** (one of 22 algorithms in three banks) runs through a filter (**FIELD**) and a
 VCA into a **processor**: a stereo delay with a frequency shifter in its feedback, metallic (**DUNGEON**) or soft and
 diffuse (**REFLEKTA**), then an ambient reverb after the Walrus Audio SLÖER.
 
@@ -30,11 +30,13 @@ pages, HOLD (and FREEZE or ECO), the octave and the battery.
 | LFO | page **VERB**: MIX, DECAY, X, FILTER; again **VERB 2**: MODE, DEPTH, RATE, STRETCH |
 | SELECT | **SEED**: every detent a new throw |
 | ALGORITHM | **SCAN**, coarse, for playing live |
-| PRESET | the algorithm, 1 to 18 (BANK 1: 1-9, BANK 2: 10-18); each keeps its own knobs |
+| PRESET | the algorithm, 1 to 22 (BANK 1: 1-9, BANK 2: 10-18, BANK 3: 19-22); each keeps its own knobs |
 | PLAY | **HOLD**: the VCA stays open, a drone; the keys only move BASIS |
 | REC | **DICE**: a new SEED and SCAN; held 1 s, MORPH, FUSE, FORM and TIME too |
 | ARP | **FREEZE**: the processor and the reverb keep what they have, forever; new notes sound dry over it |
 | SEQ held 1 s | the algorithm back to how it came |
+| GLO | **VOL**: SEED's and SCAN's windows show the output, left and right; a red frame: clipping |
+| GLO held 1 s | TIME the same for every algorithm (GLOBAL) or each its own (PER ALGO) |
 | SAVE | save (otherwise saved by itself when it is quiet: a write stops the sound for a moment) |
 | SAVE held + key | **store a snapshot**: the whole sound (algorithm, knobs, reverb, octave) on one of the first eight white keys |
 | SEL held + key | **load the snapshot** |
@@ -55,9 +57,9 @@ The bipolar knobs (WARP, SPAN, FUSE, FEED, FIELD, CELL) are neutral at their cen
 | **SCAN** | scans random timbres (per algorithm) |
 | **MIX** | dry and wet, both alike at the centre |
 | **FEED** | the delay's feedback: left, the shifted signal goes straight back (spirals); right, it is mixed with the raw delay (moving notches). At the far ends it never stops |
-| **FORM** | from distinct repeats to a diffuse reverb |
+| **FORM** | from distinct repeats to a diffuse reverb, denser and with the taps swimming more as it goes |
 | **TIME** | the delay, 5 ms to 0.74 s; turning it glides, the delay bends the pitch |
-| **FIELD** | the filter: low-pass left, high-pass right, open at the centre |
+| **FIELD** | a filter and timbral shaper in one: low-pass left, high-pass right, open at the centre; further out it shapes and emphasises more |
 | **CELL** | the frequency shift in the feedback, very fine around the centre, up to ±600 Hz; GRAIN CLOUD: the pitch, ±12 semitones |
 | **ATTACK / RELEASE** | the VCA (1 ms to 8 s / 5 ms to 14 s) |
 | **GLIDE** | how BASIS glides from note to note |
@@ -109,6 +111,17 @@ sample rate (longer, darker tails, artefacts). MODE, one detent each:
     itself (SCAN), bowed (WARP left).
 17. **FOLD BASS** (DUNGEON): two saws and a sub through a wavefolder.
 18. **SUPERSAW** (REFLEKTA): seven saws, MORPH to a drifting pulse.
+
+## The algorithms (BANK 3)
+
+19. **WAVE PM** (DUNGEON): four wavetable oscillators; WARP phase modulation / cross FM; FUSE chorus / chorus and resonance.
+20. **WAVE FOLD** (REFLEKTA): the same; FUSE audio-rate modulation of allpasses and delay / a wavefolder per oscillator.
+21. **METAL CLUSTER** (DUNGEON) and 22. **DIFFUSE CLUSTER** (REFLEKTA): four voices with cluster scanning.
+
+## Cluster scanning
+
+MORPH crossfades through a row of pairs of a frequency offset and a wave, a different row for every voice (SEED,
+SPAN), as the module's guide describes. Every gain stage soft-clips.
 
 ## Snapshots
 

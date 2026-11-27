@@ -1,7 +1,7 @@
 # FIKH-S – Handbuch
 
 FIKH-S ist ein experimenteller Synth für das M-VAVE FM-1 von **swtdr34mz**, nach dem Konzept des Forge TME VHIKK X.
-Er macht Drones, Bässe, Texturen und Geräusche. Ein **Generator** (einer von achtzehn Algorithmen in zwei Bänken) läuft durch ein
+Er macht Drones, Bässe, Texturen und Geräusche. Ein **Generator** (einer von 22 Algorithmen in drei Bänken) läuft durch ein
 Filter (**FIELD**) und einen VCA in einen **Prozessor**: ein Stereo-Delay mit einem Frequenzverschieber in der
 Rückkopplung, entweder metallisch (**DUNGEON**) oder weich und diffus (**REFLEKTA**). Ganz am Ende sitzt ein
 Ambient-Hall nach dem Vorbild des Walrus Audio SLÖER.
@@ -16,7 +16,7 @@ darin.
 - **Oben links SEED**: das rote Fenster zeigt den Wurf (#000 bis #127).
 - **Oben rechts SCAN**: die roten Streifen zeigen, wie weit SCAN steht.
 - **Die Mitte oben**: zwei Kippschalter und drei LEDs, wie am Modul. Die Schalter zeigen den Algorithmus in seiner
-  Bank (3 × 3 = 9), die LEDs die Bank (oben BANK 1, Mitte BANK 2). Darunter stehen die Nummer und der Name des Algorithmus.
+  Bank (3 × 3 = 9), die LEDs die Bank (oben BANK 1, Mitte BANK 2, unten BANK 3). Darunter stehen die Nummer und der Name des Algorithmus.
 - **Vier Regler**: die Regler der Seite. Der goldene Ring zeigt die Skala, das rote Licht im Ring den Wert. Bei den
   bipolaren Reglern geht es von der Mitte aus.
 - **BASIS**: die Note, die klingt.
@@ -37,11 +37,13 @@ darin.
 | LFO | Seite **VERB**: MIX, DECAY, X, FILTER; nochmal: **VERB 2**: MODE, DEPTH, RATE, STRETCH |
 | SELECT | **SEED**: jede Raste ein neuer Wurf |
 | ALGORITHM | **SCAN**: grob, damit man live schnell hinkommt |
-| PRESET | der Algorithmus 1 bis 18 (BANK 1: 1–9, BANK 2: 10–18). Jeder behält seine eigenen Reglerstellungen |
+| PRESET | der Algorithmus 1 bis 22 (BANK 1: 1–9, BANK 2: 10–18, BANK 3: 19–22). Jeder behält seine eigenen Reglerstellungen |
 | PLAY | **HOLD** an/aus: der VCA bleibt offen, ein Drone. Die Tasten ändern dann nur noch BASIS |
 | REC | **WÜRFELN**: neuer SEED und neuer SCAN. 1 s halten: dazu MORPH, FUSE, FORM und TIME |
 | ARP | **FREEZE** an/aus: Prozessor und Hall halten, was sie gerade haben, endlos. Neue Noten klingen trocken darüber |
 | SEQ 1 s halten | der Algorithmus zurück auf seine Werkseinstellung |
+| GLO | **VOL** an/aus: die Fenster von SEED und SCAN zeigen den Ausgang links und rechts, rot umrandet heißt übersteuert |
+| GLO 1 s halten | **TIME** für alle Algorithmen gleich (GLOBAL) oder je Algorithmus (PER ALGO), wie BASIS/TIME am Modul |
 | SAVE | speichern. Sonst speichert FIKH-S von selbst, sobald es still ist (ein Schreibvorgang unterbricht den Klang kurz) |
 | SAVE halten + Taste | **Snapshot ablegen**: der ganze Klang (Algorithmus, alle Regler, Hall, Oktave) auf einer der ersten acht weißen Tasten |
 | SEL halten + Taste | **Snapshot holen** |
@@ -63,15 +65,24 @@ Rasten bleibt der Wert stehen, erst die dritte geht weiter.
 | **SCAN** | fährt durch zufällige Klangfarben (je Algorithmus) |
 | **MIX** | trocken und nass, in der Mitte beides gleich |
 | **FEED** | die Rückkopplung des Delays. Links geht das verschobene Signal direkt zurück (Spiralen, Barberpole), rechts wird es mit dem rohen Delay gemischt (wandernde Kerben). Ganz außen hört es nicht mehr auf |
-| **FORM** | von klar getrennten Echos zu einem diffusen Hall |
+| **FORM** | von klar getrennten Echos zu einem diffusen Hall; je weiter, desto dichter und desto mehr schweben die Abgriffe |
 | **TIME** | die Länge des Delays, 5 ms bis 0,74 s. Beim Drehen gleitet sie, das Delay zieht die Tonhöhe mit |
-| **FIELD** | das Filter: links Tiefpass, rechts Hochpass, die Mitte offen |
+| **FIELD** | Filter und Klangformer in einem: links Tiefpass, rechts Hochpass, die Mitte offen; je weiter aus der Mitte, desto mehr formt und betont es |
 | **CELL** | die Frequenzverschiebung in der Rückkopplung. Um die Mitte ganz fein (langsames Schweben), außen bis ±600 Hz. Bei GRAIN CLOUD: die Tonhöhe ±12 Halbtöne |
 | **ATTACK / RELEASE** | der VCA: wie er aufgeht und wie er schließt (1 ms bis 8 s / 5 ms bis 14 s) |
 | **GLIDE** | wie BASIS von Note zu Note gleitet |
 | **DRIFT** | jeder Oszillator wandert für sich (bis ±30 Cent), MORPH und SCAN atmen langsam mit |
 | **WIDTH** | die Stereobreite |
 | **LEVEL** | die Lautstärke des Algorithmus |
+
+## Cluster-Scanning
+
+So, wie es das Handbuch des Moduls beschreibt: MORPH blendet weich durch eine Reihe von Paaren aus Frequenz-Versatz
+und Welle, und zwar für jede Stimme eine andere Reihe. Das ist wie eine Wavetable, bei der jede Position auch einen
+eigenen Ton hat. SEED würfelt die Reihen, SPAN skaliert die Versätze. So scannen SINE CLUSTER, DIATONIC (in Moll
+quantisiert), GRAIN CLOUD, DISPERSOR, METAL CLUSTER und DIFFUSE CLUSTER.
+
+Jede Stufe (Generator, Filter, Prozessor, Ausgang) wird weich begrenzt, wie am Modul: Laut wird es warm, nicht hart.
 
 ## Snapshots
 
@@ -161,6 +172,18 @@ zerstreut.
     gefaltet wird, SCAN die Symmetrie, SPAN die Verstimmung des zweiten Sägezahns.
 18. **SUPERSAW** (REFLEKTA): sieben verstimmte Sägezähne. SPAN die Verstimmung, MORPH vom Sägezahn zum schwebenden
     Puls, SCAN die Mitte gegen die Seiten, WARP links ein Falter, rechts ein Sub.
+
+## Die Algorithmen (BANK 3)
+
+Die vier Algorithmen aus der ersten Bank des Moduls, die in unserer BANK 1 fehlen. Die Kippschalter stehen wie am
+Modul (Plätze 5, 6, 8, 9).
+
+19. **WAVE PM** (DUNGEON): vier Wavetable-Oszillatoren. WARP links Phasenmodulation unter den Oszillatoren, rechts
+    Kreuz-FM. FUSE links Chorus, rechts Chorus mit Filterresonanz.
+20. **WAVE FOLD** (REFLEKTA): wie WAVE PM. FUSE links moduliert der Oszillator Allpässe und Delay mit Audiorate,
+    rechts ein Wavefolder für jeden Oszillator.
+21. **METAL CLUSTER** (DUNGEON): vier Stimmen mit freiem Cluster-Scanning. FUSE links Stereo-Chorus, rechts Sättigung.
+22. **DIFFUSE CLUSTER** (REFLEKTA): dasselbe, mit dem diffusen Prozessor.
 
 ## Tipps
 

@@ -12,11 +12,13 @@
  *              EDIT  MOTION  GLIDE, DRIFT, WIDTH, LEVEL
  *              LFO   VERB    MIX, DECAY, X, FILTER; nochmal: MODE, DEPTH, RATE, STRETCH (der Hall, für alle gleich)
  *   SELECT     SEED (jede Raste ein neuer Wurf)          ALGORITHM  SCAN (grob, für live)
- *   PRESET     der Algorithmus 1..18 (BANK 1: 1..9, BANK 2: 10..18); jeder behält seine eigenen Regler
+ *   PRESET     der Algorithmus 1..22 (BANK 1: 1..9, BANK 2: 10..18, BANK 3: 19..22); jeder behält seine eigenen Regler
  *   PLAY       HOLD: der VCA bleibt offen, ein Drone; die Tasten ändern nur noch BASIS
  *   REC        WÜRFELN: SEED und SCAN neu; 1 s halten: dazu MORPH, FUSE, FORM und TIME
  *   ARP        FREEZE: Delay und Hall halten, was sie haben (endlos), Neues klingt trocken darüber
  *   SEQ        1 s halten: der Algorithmus zurück auf seine Werkseinstellung
+ *   GLO        VOL: die Fenster von SEED und SCAN zeigen den Ausgang (links, rechts), rot umrandet: übersteuert;
+ *              1 s halten: TIME für alle Algorithmen gleich (GLOBAL) oder je Algorithmus (PER ALGO)
  *   SAVE       speichern (sonst automatisch, sobald es still ist)
  *   SNAPSHOTS  SAVE halten + eine der ersten 8 weißen Tasten: der Klang dort abgelegt (Algorithmus, Regler, Hall,
  *              Oktave); SEL halten + die Taste: zurückgeholt. Solange SEL oder SAVE gehalten ist, leuchten die belegten
@@ -39,7 +41,8 @@ static float mem_rva[FK_RVA_N] __attribute__((section(".pool")));
 static int16_t mem_sh[FK_SH_N] __attribute__((section(".pool")));
 
 /* ------------------------------------------------------------- Speicher --- */
-#define SET_MAGIC 0x33484B46u            /* "FKH3": BANK 2 und die Snapshots */
+#define SET_MAGIC 0x34484B46u            /* "FKH4": BANK 3, TIME global */
+#define SET_MAGIC_V3 0x33484B46u         /* "FKH3" (v0.3: 18 Algorithmen, Snapshots) wird übernommen */
 #define SET_MAGIC_V2 0x32484B46u         /* "FKH2" (v0.2: neun Algorithmen, der Hall) wird übernommen */
 #define NSNAP 8
 typedef struct {
@@ -50,10 +53,18 @@ typedef struct {
 typedef struct {
     uint32_t magic;
     uint8_t algo, oct, hold, snap;       /* snap: der zuletzt geholte Snapshot (0: keiner, 1..8) */
+    uint8_t tglob, time_g, rsv[2];       /* TIME für alle Algorithmen gleich (1) und sein Wert; sonst je Algorithmus */
     uint8_t p[FK_NALGO][FK_NPA];         /* jeder Algorithmus mit seinen Reglern */
     uint8_t verb[FK_NPV];                /* der Hall: für alle Algorithmen gleich */
     snap_t snaps[NSNAP];
 } settings_t;
+typedef struct {                         /* (v0.3) */
+    uint32_t magic;
+    uint8_t algo, oct, hold, snap;
+    uint8_t p[18][FK_NPA];
+    uint8_t verb[FK_NPV];
+    snap_t snaps[NSNAP];
+} settings_v3_t;
 typedef struct {                         /* (v0.2) */
     uint32_t magic;
     uint8_t algo, oct, hold, rsv;
@@ -74,11 +85,25 @@ static void settings_defaults(void)
     for (a = 0; a < FK_NALGO; a++)
         memcpy(set.p[a], FK_ALGOS[a].init, FK_NPA);
     memcpy(set.verb, FK_VERB_INIT, FK_NPV);
+    set.time_g = FK_ALGOS[0].init[P_TIME];
 }
 
 static void settings_load(void)
 {
     int a, i, got = plat_store_load(OBJ_SETTINGS, &set, sizeof set), ok;
+    if (got == (int)sizeof(settings_v3_t) && set.magic == SET_MAGIC_V3) {   /* aus v0.3: alles bleibt, BANK 3 neu */
+        static settings_v3_t o;
+        memcpy(&o, &set, sizeof o);
+        settings_defaults();
+        set.algo = o.algo < 18u ? o.algo : 0u;
+        set.oct = o.oct;
+        set.hold = o.hold;
+        set.snap = o.snap;
+        memcpy(set.p, o.p, sizeof o.p);
+        memcpy(set.verb, o.verb, sizeof o.verb);
+        memcpy(set.snaps, o.snaps, sizeof o.snaps);
+        got = (int)sizeof set;
+    }
     if (got == (int)sizeof(settings_v2_t) && set.magic == SET_MAGIC_V2) {   /* aus v0.2: alles bleibt, BANK 2 neu */
         settings_v2_t o;
         memcpy(&o, &set, sizeof o);
@@ -91,7 +116,7 @@ static void settings_load(void)
         got = (int)sizeof set;
     }
     ok = got == (int)sizeof set && set.magic == SET_MAGIC && set.algo < FK_NALGO && set.oct <= 4u && set.hold <= 1u
-         && set.snap <= NSNAP;
+         && set.snap <= NSNAP && set.tglob <= 1u && set.time_g <= 127u;
     for (i = 0; ok && i < NSNAP; i++)
         if (set.snaps[i].used > 1u || set.snaps[i].algo >= FK_NALGO || set.snaps[i].oct > 4u)
             ok = 0;
@@ -114,12 +139,19 @@ static void dirty(void)
 
 /* ------------------------------------------------- an die Engine (Hauptschleife) --- */
 /* ein Parameter: die des Algorithmus, oder die des Halls (für alle gleich) */
-static uint8_t *pval(int p) { return p >= FK_NPA ? &set.verb[p - FK_NPA] : &set.p[set.algo][p]; }
+static uint8_t *pval(int p)
+{
+    if (p == P_TIME && set.tglob)        /* TIME global: einer für alle (wie BASIS/TIME GLOBAL am Modul) */
+        return &set.time_g;
+    return p >= FK_NPA ? &set.verb[p - FK_NPA] : &set.p[set.algo][p];
+}
 static int pget(int p) { return *pval(p); }
 static void all_params(uint8_t *o)
 {
     memcpy(o, set.p[set.algo], FK_NPA);
     memcpy(o + FK_NPA, set.verb, FK_NPV);
+    if (set.tglob)
+        o[P_TIME] = set.time_g;
 }
 static void push_params(void)
 {
@@ -160,7 +192,7 @@ static const uint8_t PAGE_K[NPAGES][4] = {
 
 /* was neu gezeichnet werden muss: Bereiche des Bildschirms */
 enum { R_KNOB0 = 1, R_KNOB1 = 2, R_KNOB2 = 4, R_KNOB3 = 8, R_HEAD = 16, R_BASIS = 32, R_SCOPE = 64, R_READ = 128,
-       R_FOOT = 256, R_ALL = 0x7FFF };
+       R_FOOT = 256, R_METER = 512, R_ALL = 0x7FFF };
 
 static struct {
     uint8_t page, intro, eco_warned;
@@ -170,6 +202,9 @@ static struct {
     uint32_t knob_at[4];                 /* wann jeder Regler zuletzt gedreht wurde (er leuchtet) */
     uint8_t rest[4];                     /* Rasten in der Mitte (bipolar) */
     uint8_t snap_used;                   /* SEL / SAVE gehalten: eine Taste wurde benutzt */
+    uint8_t vol;                         /* VOL: die Fenster zeigen die Pegel */
+    uint32_t glo_t, clip_until;
+    float mt[2];
     int read_p;                          /* der Parameter in der Anzeige (-1: der Name der Seite) */
     uint32_t read_until;
     char msg[2][24];
@@ -358,6 +393,8 @@ static void snap_store(int s)
     n->algo = set.algo;
     n->oct = set.oct;
     memcpy(n->p, set.p[set.algo], FK_NPA);
+    if (set.tglob)
+        n->p[P_TIME] = set.time_g;
     memcpy(n->verb, set.verb, FK_NPV);
     set.snap = (uint8_t)(s + 1);
     dirty();
@@ -381,6 +418,8 @@ static void snap_load(int s)
     set.algo = n->algo;
     set.oct = n->oct;
     memcpy(set.p[set.algo], n->p, FK_NPA);
+    if (set.tglob)
+        set.time_g = n->p[P_TIME];
     memcpy(set.verb, n->verb, FK_NPV);
     set.snap = (uint8_t)(s + 1);
     all_params(o);
@@ -536,8 +575,8 @@ static void button(uint32_t i)
         ui.redraw |= R_FOOT;
         break;
     }
-    case B_GLO:
-        app_say("FIKH-S", "HOME FX ENV EDIT LFO");
+    case B_GLO:                          /* GLO: VOL (die Pegel in den Fenstern); 1 s gehalten: TIME global / je Algorithmus */
+        ui.glo_t = plat_ms();
         break;
     default: break;
     }
@@ -563,6 +602,22 @@ static void held_buttons(uint32_t btn)
         } else if (now - ui.rec_t >= 1000u) {
             dice(1);
             ui.rec_t = 0;
+        }
+    }
+    if (ui.glo_t) {
+        if (!(btn >> B_GLO & 1u)) {
+            ui.vol = (uint8_t)!ui.vol;
+            ui.redraw |= R_HEAD;
+            app_say("VOL", ui.vol ? "OUT L / R" : "OFF");
+            ui.glo_t = 0;
+        } else if (now - ui.glo_t >= 1000u) {
+            set.tglob = (uint8_t)!set.tglob;
+            if (set.tglob)
+                set.time_g = set.p[set.algo][P_TIME];   /* global: der TIME, der gerade klingt, gilt nun für alle */
+            push_params();
+            dirty();
+            app_say("TIME", set.tglob ? "GLOBAL" : "PER ALGO");
+            ui.glo_t = 0;
         }
     }
     if (ui.seq_t) {
@@ -618,6 +673,8 @@ static void lights(void)
         btn |= 1u << B_ARP;
     if (set_dirty)
         btn |= 1u << B_SAVE;
+    if (ui.vol)
+        btn |= 1u << B_GLO;
     if (now - ui.dice_at < 160u)
         btn |= 1u << B_REC;
     if (set.oct != 2)
@@ -1089,13 +1146,29 @@ static void scene(uint32_t now)
     {
         char s[8] = "";
         fk_value_text(P_SEED, p[P_SEED], s);
-        led_window(26.0f, 30.0f, 50.0f, 16.0f, 0.0f, s);
-        label_pale(51.0f, 50.0f, "SEED");
-        led_window(164.0f, 30.0f, 50.0f, 16.0f, (float)p[P_SCAN] / 127.0f, 0);
-        label_pale(189.0f, 50.0f, "SCAN");
+        if (ui.vol) {                     /* VOL: die Fenster zeigen den Ausgang links und rechts; rot umrandet: übersteuert */
+            int clip = now < ui.clip_until;
+            led_window(26.0f, 30.0f, 50.0f, 16.0f, ui.mt[0], 0);
+            led_window(164.0f, 30.0f, 50.0f, 16.0f, ui.mt[1], 0);
+            if (clip) {
+                s_frame(25.0f, 29.0f, 77.0f, 47.0f, 1.0f, RED, 1.0f);
+                s_frame(163.0f, 29.0f, 215.0f, 47.0f, 1.0f, RED, 1.0f);
+            }
+            label_pale(51.0f, 50.0f, "OUT L");
+            label_pale(189.0f, 50.0f, "OUT R");
+        } else {
+            led_window(26.0f, 30.0f, 50.0f, 16.0f, 0.0f, s);
+            label_pale(51.0f, 50.0f, "SEED");
+            led_window(164.0f, 30.0f, 50.0f, 16.0f, (float)p[P_SCAN] / 127.0f, 0);
+            label_pale(189.0f, 50.0f, "SCAN");
+        }
     }
-    toggle(103.0f, 40.0f, (a % FK_BANK) / 3);
-    toggle(137.0f, 40.0f, (a % FK_BANK) % 3);
+    {                                     /* die Kippschalter: der Platz in der Bank (BANK 3 wie am Modul: 5, 6, 8, 9) */
+        static const uint8_t B3[4] = {4, 5, 7, 8};
+        int slot = a < 2 * FK_BANK ? a % FK_BANK : B3[(a - 2 * FK_BANK) & 3];
+        toggle(103.0f, 40.0f, slot / 3);
+        toggle(137.0f, 40.0f, slot % 3);
+    }
     for (k = 0; k < 3; k++) {             /* die Bank-LEDs: die Bank leuchtet */
         float yy = 31.0f + (float)k * 6.0f;
         int on = k == a / FK_BANK;
@@ -1108,9 +1181,12 @@ static void scene(uint32_t now)
         if (a + 1 < 10)
             text_cat(t, "0");
         int_text(a + 1, t);
-        s_ctext(120.0f, 56.0f, &FONT_SERIF_XS, a < FK_BANK ? "BANK 1" : "BANK 2", C_GOLD_DIM, 1);
+        s_ctext(120.0f, 56.0f, &FONT_SERIF_XS, a < FK_BANK ? "BANK 1" : a < 2 * FK_BANK ? "BANK 2" : "BANK 3", C_GOLD_DIM, 1);
         s_text(66.0f, 66.0f, &FONT_SERIF_S, t, C_RED, 0);
-        s_ctext(124.0f, 66.0f, &FONT_SERIF_S, FK_ALGOS[a].name, C_GOLD_HI, 1);
+        if (text_w(&FONT_SERIF_S, FK_ALGOS[a].name) <= 86)
+            s_ctext(124.0f, 66.0f, &FONT_SERIF_S, FK_ALGOS[a].name, C_GOLD_HI, 1);
+        else                              /* lange Namen (DIFFUSE CLUSTER): kleiner, damit die Nummer frei bleibt */
+            s_ctext(127.0f, 67.0f, &FONT_SERIF_XS, FK_ALGOS[a].name, C_GOLD_HI, 1);
     }
     /* die vier Regler der Seite */
     for (k = 0; k < 4; k++) {
@@ -1252,6 +1328,10 @@ static void draw(uint32_t m)
         }
     if (m & R_HEAD)
         region(10, 24, 230, 79);
+    else if (m & R_METER) {
+        region(22, 27, 80, 49);
+        region(160, 27, 218, 49);
+    }
     if (m & R_BASIS)
         region(88, 79, 152, 119);
     if (m & R_SCOPE)
@@ -1449,6 +1529,17 @@ void app_frame(void)
         ann_say(t, 0, ANN_NOW);
     }
     ann_tick(now);
+    if (ui.vol && !(ui.frame % 3u)) {    /* VOL: die Pegel, in dB (-48 .. 0), ~20 Bilder pro Sekunde */
+        int c;
+        for (c = 0; c < 2; c++) {
+            float pk = fk_meter(c), db = pk > 1e-5f ? 6.0206f * fm_log2f(pk) : -96.0f;
+            ui.mt[c] = (db + 48.0f) / 48.0f;
+            ui.mt[c] = ui.mt[c] < 0.0f ? 0.0f : ui.mt[c] > 1.0f ? 1.0f : ui.mt[c];
+        }
+        if (fk_clipped())
+            ui.clip_until = now + 600u;
+        ui.redraw |= R_METER;
+    }
     if (!(ui.frame % 3u))                /* der Scope: ~20 Bilder pro Sekunde */
         ui.redraw |= R_SCOPE;
     {

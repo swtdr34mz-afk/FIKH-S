@@ -96,105 +96,8 @@ static void gen_shaper(float *gl, float *gr, int n)
         E.cfg.sat = E.v.fuse;
 }
 
-/* ---- 3 SINE CLUSTER: sechs Sinus in einem Cluster (SEED würfelt die Abstände, SPAN spreizt, rechts Stereo);
- *      MORPH scannt über den Cluster; WARP links Phasen-Rückkopplung, rechts Kreuz-FM; SCAN Ringmodulation der
- *      Nachbarn; FUSE links Chorus, rechts Rauschmodulation */
-static void gen_sines(float *gl, float *gr, int n)
-{
-    float w = E.v.warp, sp = fk_abs(E.v.span), amp[6], a2 = 0.0f, g, u = E.v.fuse > 0.0f ? E.v.fuse : 0.0f;
-    float sc = E.v.scan, fbk = w < 0.0f ? -w * 0.16f : 0.0f, xm = w > 0.0f ? w * 1.1f : 0.0f;
-    int c, i, k, N = E.eco ? 4 : 6;
-    for (k = 0; k < N; k++) {
-        amp[k] = 0.18f + scan_bell((float)k / (float)(N - 1), E.v.morph, 0.26f);
-        a2 += amp[k] * amp[k];
-    }
-    g = 0.55f / fm_sqrtf(a2);
-    for (c = 0; c < 2; c++) {
-        float *o = c ? gr : gl, d[6], p[6], y[6], nz = E.nz[c];
-        for (k = 0; k < N; k++) {
-            float st = E.r_off[k] * sp * 24.0f;
-            if (c && E.v.span > 0.0f)
-                st += E.r_off2[k] * E.v.span * 0.35f;
-            d[k] = osc_inc(c, k, st);
-            p[k] = E.ph[c][k];
-            y[k] = E.fb[c][k];
-        }
-        for (i = 0; i < n; i++) {
-            float s = 0.0f, prev = y[N - 1];
-            nz += (fk_rand11(&E.noise) - nz) * 0.003f;
-            for (k = 0; k < N; k++) {
-                float dk = d[k];
-                if (xm > 0.0f)
-                    dk *= fk_exp2s(prev * xm);
-                if (u > 0.0f)
-                    dk *= 1.0f + nz * u * 0.6f;
-                p[k] = ph_step(p[k], dk);
-                prev = y[k] = fk_sin(p[k] + fbk * y[k]);
-            }
-            for (k = 0; k < N; k++)
-                s += amp[k] * (y[k] * (1.0f - sc) + y[k] * y[k + 1 < N ? k + 1 : 0] * sc * 1.4f);
-            o[i] = s * g * 0.8f * (1.0f + nz * u * 6.0f);
-        }
-        for (k = 0; k < N; k++) {
-            E.ph[c][k] = p[k];
-            E.fb[c][k] = y[k];
-        }
-        E.nz[c] = nz;
-    }
-    if (E.v.fuse < 0.0f)
-        E.cfg.chorus = -E.v.fuse;
-}
-
-/* ---- 4 WAVE QUAD: vier Wavetable-Oszillatoren; MORPH durch die Tabelle, SCAN versetzt jeden zufällig;
- *      SPAN links Frequenz- und Wellen-Spreizung, rechts Frequenz und Stereo; WARP links Bitcrush, rechts
- *      Kreuz-FM; FUSE links Bandpass mit einem Sinus darunter, rechts Chorus mit Resonanz */
-static void gen_quad(float *gl, float *gr, int n)
-{
-    float w = E.v.warp, sp = fk_abs(E.v.span), pos[4], xm = w > 0.0f ? w * 1.2f : 0.0f;
-    int c, i, k, set = E.r_set;
-    for (k = 0; k < 4; k++) {
-        pos[k] = E.v.morph + E.v.scan * (E.r_wave[k] - 0.5f) * 0.9f;
-        if (E.v.span < 0.0f)
-            pos[k] += sp * (E.r_wave2[k] - 0.5f) * 0.6f;
-        pos[k] = fk_clamp(pos[k], 0.0f, 1.0f);
-    }
-    for (c = 0; c < 2; c++) {
-        float *o = c ? gr : gl, d[4], p[4], y[4];
-        for (k = 0; k < 4; k++) {
-            float st = E.r_off[k] * sp * 7.0f;
-            if (c && E.v.span > 0.0f)
-                st += E.r_off2[k] * E.v.span * 0.6f;
-            d[k] = osc_inc(c, k, st);
-            p[k] = E.ph[c][k];
-            y[k] = E.fb[c][k];
-        }
-        for (i = 0; i < n; i++) {
-            float s = 0.0f;
-            for (k = 0; k < 4; k++) {
-                float dk = d[k];
-                if (xm > 0.0f)
-                    dk *= fk_exp2s(y[(k + 1) & 3] * xm);
-                p[k] = ph_step(p[k], dk);
-                y[k] = wt_read(E.m.wt, set, pos[k], p[k]);
-                s += y[k];
-            }
-            o[i] = s * 0.27f;
-        }
-        for (k = 0; k < 4; k++) {
-            E.ph[c][k] = p[k];
-            E.fb[c][k] = y[k];
-        }
-    }
-    if (w < 0.0f)
-        E.cfg.crush = -w;
-    if (E.v.fuse < 0.0f) {
-        E.cfg.bpm = -E.v.fuse;
-        E.cfg.psine = -E.v.fuse * 0.6f;
-    } else {
-        E.cfg.chorus = E.v.fuse;
-        E.cfg.res = E.v.fuse * 0.6f;
-    }
-}
+/* (fikh_cluster.c) */
+static void gen_cluster4(float *gl, float *gr, int n, int set, int quant, float gain);
 
 /* die Tonleiter der diatonischen Cluster: natürliches Moll */
 static float minor_semi(int deg)
@@ -204,49 +107,8 @@ static float minor_semi(int deg)
     return (float)(ST[deg - o * 7] + 12 * o);
 }
 
-/* gemeinsam für 5 DIATONIC und 9 GRAIN CLOUD: vier Wavetable-Stimmen, ihre Tonhöhen gleiten (E.semi) */
-static void gen_cluster4(float *gl, float *gr, int n, int set, int quant, float gain)
-{
-    float w = E.v.warp, sp = fk_abs(E.v.span), pos[4], amp[4], pm = w < 0.0f ? -w * 0.30f : 0.0f;
-    float xm = w > 0.0f ? w * 1.0f : 0.0f;
-    int c, i, k;
-    for (k = 0; k < 4; k++) {
-        float t = quant ? minor_semi((int)(E.r_off[k] * sp * 14.0f + (E.r_off[k] < 0.0f ? -0.5f : 0.5f)))
-                        : E.r_off[k] * sp * 12.0f;
-        E.semi[k] += (t - E.semi[k]) * 0.12f;           /* gleitet in ~25 ms auf den neuen Ton */
-        pos[k] = fk_clamp(0.26f + E.v.scan * (E.r_wave[k] - 0.3f) * 0.9f, 0.0f, 1.0f);
-        amp[k] = 0.25f + scan_bell((float)k / 3.0f, E.v.morph, 0.32f);
-    }
-    for (c = 0; c < 2; c++) {
-        float *o = c ? gr : gl, d[4], p[4], y[4], a[4];
-        for (k = 0; k < 4; k++) {
-            float pan = E.v.span > 0.0f ? E.r_pan[k] * E.v.span * 0.7f : 0.0f;
-            d[k] = osc_inc(c, k, E.semi[k]);
-            p[k] = E.ph[c][k];
-            y[k] = E.fb[c][k];
-            a[k] = amp[k] * (c ? 1.0f + pan : 1.0f - pan);
-        }
-        for (i = 0; i < n; i++) {
-            float s = 0.0f;
-            for (k = 0; k < 4; k++) {
-                float dk = d[k], prev = y[(k + 3) & 3];
-                if (xm > 0.0f)
-                    dk *= fk_exp2s(prev * xm);
-                p[k] = ph_step(p[k], dk);
-                y[k] = wt_read(E.m.wt, set, pos[k], p[k] + pm * prev);
-                s += a[k] * y[k];
-            }
-            o[i] = s * gain;
-        }
-        for (k = 0; k < 4; k++) {
-            E.ph[c][k] = p[k];
-            E.fb[c][k] = y[k];
-        }
-    }
-}
-
-/* ---- 5 DIATONIC: vier Stimmen, in Moll quantisiert (SPAN spreizt in Tonleiterstufen, rechts Stereo); MORPH
- *      scannt über die Stimmen; SCAN würfelt ihre Wellen; FUSE links Stereo-Chorus, rechts Sättigung */
+/* ---- 5 DIATONIC: vier Stimmen mit Cluster-Scanning, in Moll quantisiert (SPAN spreizt in Tonleiterstufen, rechts
+ *      Stereo); MORPH scannt die Paare aus Tonstufe und Welle; SCAN verschiebt die Wellen; FUSE links Stereo-Chorus, rechts Sättigung */
 static void gen_diatonic(float *gl, float *gr, int n)
 {
     gen_cluster4(gl, gr, n, 1, 1, 0.22f);
@@ -410,7 +272,7 @@ static void gen_combs(float *gl, float *gr, int n)
  *      (CELL ±12 Halbtöne, FORM die Korngröße); FUSE links Diffusion, rechts Sättigung */
 static void gen_grain(float *gl, float *gr, int n)
 {
-    gen_cluster4(gl, gr, n, 2, 0, 0.34f);
+    gen_cluster4(gl, gr, n, 2, 0, 0.50f);
     if (E.v.fuse < 0.0f)
         E.cfg.diff = -E.v.fuse;
     else

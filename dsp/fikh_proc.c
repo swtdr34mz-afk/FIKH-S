@@ -72,7 +72,19 @@ static void proc_block(const float *gl, const float *gr, float *ol, float *or_, 
     float atk = 1.0f / (fk_atk_ms(E.v.atk) * (FK_SR / 1000.0f) + 1.0f), rel = 1.0f / (fk_rel_ms(E.v.rel) * (FK_SR / 1000.0f) + 1.0f);
     float etg = (E.gate || E.hold) && E.note >= 0 ? E.vel : 0.0f, xg = E.xf, xstep = E.xf_dir * (1.0f / 441.0f);
     float duck = E.duck_g, dstep = (E.duck ? -1.0f : 1.0f) * (1.0f / 441.0f);
-    float phs_a = 0.0f, phs_c[2], frz = E.frz, ftg = E.freeze ? 1.0f : 0.0f;
+    float phs_a = 0.0f, phs_c[2], frz = E.frz, ftg = E.freeze ? 1.0f : 0.0f, fsh = fk_abs(E.v.field);
+    float fmv[2], fms[2];
+    {   /* FORM: je diffuser, desto mehr schweben die Abgriffe (zwei langsame LFOs, links und rechts verschieden) */
+        int ch;
+        float dep = form * form * 0.0045f;
+        for (ch = 0; ch < 2; ch++) {
+            float m0 = E.fm_v[ch];
+            E.fm_ph[ch] = fk_wrap(E.fm_ph[ch] + (0.23f + 0.17f * (float)ch) * (float)n / FK_SR);
+            E.fm_v[ch] = dep * (fk_sin(E.fm_ph[ch]) + 0.4f * fk_sin(E.fm_ph[ch] * 2.0f + 0.3f));
+            fmv[ch] = m0;
+            fms[ch] = (E.fm_v[ch] - m0) / (float)n;
+        }
+    }
     for (i = 0; i < 12; i++)                            /* DISPERSOR: FORM wie stark, SEED verteilt die Allpässe */
         dco[i] = fk_clamp(-0.15f + 0.95f * form + 0.18f * E.dsp_a[i], -0.6f, 0.94f);
     if (grain) {                                        /* die Körner: die Leseköpfe wandern mit (1 - Verhältnis) */
@@ -105,8 +117,8 @@ static void proc_block(const float *gl, const float *gr, float *ol, float *or_, 
             }
         }
         duck = fk_clamp(duck + dstep, 0.0f, 1.0f);
-        x[0] = gl[i] * xg;
-        x[1] = gr[i] * xg;
+        x[0] = fk_soft(gl[i] * xg);             /* jede Stufe weich begrenzt: der Generator */
+        x[1] = fk_soft(gr[i] * xg);
         gm = (x[0] + x[1]) * 0.5f;
         E.env += (etg - E.env) * (etg > E.env ? atk : rel);
         /* Chorus: zwei langsam schwebende Abgriffe, links und rechts gegenläufig */
@@ -143,10 +155,13 @@ static void proc_block(const float *gl, const float *gr, float *ol, float *or_, 
                 fk_svf_run(&E.bpf[c], &E.bpc, v, &lp, &bp, &hp);
                 v = fk_lerp(v, bp * 1.6f + k->psine * fk_sin(E.sine_ph) * 0.35f, k->bpm);
             }
-            {                                           /* FIELD */
+            {                                           /* FIELD: Filter und Klangformer in einem */
                 float lp, bp, hp;
+                if (fsh > 0.0f)                         /* je weiter aus der Mitte, desto mehr formt es vor dem Filter */
+                    v = fk_lerp(v, fk_sat(v * (1.0f + fsh * 3.0f)) * (1.0f + fsh * 0.4f), fsh * 0.7f);
                 fk_svf_run(&E.flt[c], &E.fc, v, &lp, &bp, &hp);
-                v = E.field_hp ? hp : lp;
+                v = E.field_hp ? hp + bp * fsh * 0.6f : lp + bp * fsh * 0.6f;
+                v = fk_soft(v);                         /* (weich begrenzt: das Filter) */
             }
             x[c] = v * E.env;
         }
@@ -164,16 +179,17 @@ static void proc_block(const float *gl, const float *gr, float *ol, float *or_, 
             }
             for (c = 0; c < 2; c++) {
                 const int16_t *b = E.m.dl[c];
-                float dd = D * (1.0f + k->dmod * 0.035f * gm), t0 = dl_read(b, E.dw, dd);
+                float Dm = D * (1.0f + fmv[c]), dd = Dm * (1.0f + k->dmod * 0.035f * gm), t0 = dl_read(b, E.dw, dd);
+                fmv[c] += fms[c];
                 raw0[c] = dl_read(b, E.dw, D);
                 if (refl) {
-                    float t1 = dl_read(E.m.dl[c ^ 1], E.dw, D * E.tap[c][1]);
+                    float t1 = dl_read(E.m.dl[c ^ 1], E.dw, Dm * E.tap[c][1]);
                     y[c] = t0 * (1.0f - 0.32f * form) + t1 * 0.42f * form;
                 } else {
                     float v = t0;
                     if (form > 0.02f) {
-                        float t1 = dl_read(b, E.dw, D * E.tap[c][1]), t2 = dl_read(b, E.dw, D * E.tap[c][2]);
-                        float t3 = dl_read(b, E.dw, D * E.tap[c][3]);
+                        float t1 = dl_read(b, E.dw, Dm * E.tap[c][1]), t2 = dl_read(b, E.dw, Dm * E.tap[c][2]);
+                        float t3 = dl_read(b, E.dw, Dm * E.tap[c][3]);
                         v = t0 * (1.0f - 0.45f * form) + (t1 + t2 + t3) * 0.36f * form;
                     }
                     if (disp) {                 /* DISPERSOR: zwölf Allpässe erster Ordnung: die Echos zirpen */

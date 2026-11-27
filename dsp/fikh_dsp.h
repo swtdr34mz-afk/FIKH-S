@@ -45,6 +45,15 @@ static inline float fk_sat(float x)
     a = x * x;
     return x * (27.0f + a) / (27.0f + 9.0f * a);
 }
+/* weich begrenzt erst oberhalb von 0,8 (jede Verstärkerstufe, wie am Modul: darunter unverändert) */
+static inline float fk_soft(float x)
+{
+    if (x > 0.8f)
+        return 0.8f + fk_sat((x - 0.8f) * 2.5f) * 0.4f;
+    if (x < -0.8f)
+        return -0.8f - fk_sat((-x - 0.8f) * 2.5f) * 0.4f;
+    return x;
+}
 /* ein Falter (Wavefolder): bleibt in -1..1 und faltet zurück */
 static inline float fk_fold(float x)
 {

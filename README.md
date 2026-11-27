@@ -1,7 +1,7 @@
 # FIKH-S
 
-Experimental synthesis for the M-VAVE FM-1 by **swtdr34mz**, after the concept of the Forge TME VHIKK X: eighteen
-algorithms in two banks for drones, basses, textures and noise, through a filter into a stereo processor, a metallic **DUNGEON** or
+Experimental synthesis for the M-VAVE FM-1 by **swtdr34mz**, after the concept of the Forge TME VHIKK X: twenty-two
+algorithms in three banks for drones, basses, textures and noise, through a filter into a stereo processor, a metallic **DUNGEON** or
 a diffuse **REFLEKTA** delay with a frequency shifter in its feedback, then an ambient reverb after the Walrus Audio
 SLÖER (DREAM, DARK, RISE, LIGHT, RAIN). Built on
 [fm1-base](https://github.com/charlesvestal/fm1-base) and [felucca-bsp](https://github.com/hugelton/felucca-bsp).
@@ -9,7 +9,7 @@ SLÖER (DREAM, DARK, RISE, LIGHT, RAIN). Built on
 Unofficial: not made or supported by Forge TME, Walrus Audio or M-VAVE. No code, sound or artwork of theirs is used;
 the algorithms are FIKH-S's own. At your own risk.
 
-![FIKH-S](site/img/screen-main.png) ![The title](site/img/screen-splash.png)
+![FIKH-S](site/img/screen-main.png) ![The title](site/img/screen-splash.png) ![VOL](site/img/screen-vol.png) ![BANK 3](site/img/screen-bank3.png)
 
 **Handbuch:** [Deutsch](docs/HANDBUCH.md) · **Manual:** [English](docs/MANUAL.md)
 
@@ -28,11 +28,13 @@ any FM-1 firmware. It runs on both FM-1 chips.
 | LFO | **VERB**: MIX, DECAY, X, FILTER; again **VERB 2**: MODE, DEPTH, RATE, STRETCH (the reverb, the same for every algorithm) |
 | SELECT | **SEED**: every detent a new throw of the dice (offsets, wave offsets, delay taps) |
 | ALGORITHM | **SCAN**: scans random timbres, coarse for playing live |
-| PRESET | The algorithm, 1 to 18 (BANK 1: 1-9, BANK 2: 10-18). Each keeps its own knobs |
+| PRESET | The algorithm, 1 to 22 (BANK 1: 1-9, BANK 2: 10-18, BANK 3: 19-22). Each keeps its own knobs |
 | PLAY | **HOLD**: the VCA stays open, a drone; the keys only move BASIS |
 | REC | **DICE**: a new SEED and SCAN. Held 1 s: MORPH, FUSE, FORM and TIME too |
 | ARP | **FREEZE**: the processor and the reverb keep what they have, forever; new notes sound dry over it |
 | SEQ held 1 s | The algorithm back to how it came |
+| GLO | **VOL**: SEED's and SCAN's windows show the output, left and right; a red frame: clipping |
+| GLO held 1 s | TIME the same for every algorithm (GLOBAL) or each its own (PER ALGO) |
 | SAVE | Save (otherwise saved by itself when it is quiet) |
 | SAVE held + key | **Snapshot**: the whole sound (algorithm, knobs, reverb, octave) stored on one of the first eight white keys |
 | SEL held + key | The snapshot on that key back |
@@ -69,6 +71,24 @@ The bipolar knobs (WARP, SPAN, FUSE, FEED, FIELD, CELL) rest at their centre, ne
 | 17 | FOLD BASS | two saws and a sub through a wavefolder | DUNGEON |
 | 18 | SUPERSAW | seven saws, from saw to drifting pulse | REFLEKTA |
 
+## The algorithms (BANK 3)
+
+The four algorithms of the module's first bank that BANK 1 does not have; the toggle switches stand where they
+stand on the module (5, 6, 8, 9).
+
+| # | Name | Generator | Processor |
+| --- | --- | --- | --- |
+| 19 | WAVE PM | four wavetable oscillators; WARP phase modulation / cross FM; FUSE chorus / chorus and resonance | DUNGEON |
+| 20 | WAVE FOLD | the same; FUSE audio-rate modulation of allpasses and delay / a wavefolder per oscillator | REFLEKTA |
+| 21 | METAL CLUSTER | four voices, cluster scanning | DUNGEON |
+| 22 | DIFFUSE CLUSTER | four voices, cluster scanning | REFLEKTA |
+
+## Cluster scanning
+
+As the module's guide describes it: MORPH crossfades smoothly through a row of pairs of a frequency offset and a
+wave, different for every oscillator (SEED throws them, SPAN scales the offsets). SINE CLUSTER, DIATONIC, GRAIN
+CLOUD, DISPERSOR, METAL CLUSTER and DIFFUSE CLUSTER scan this way.
+
 ## The reverb (VERB)
 
 An ambient reverb after the Walrus Audio SLÖER, at the end of the chain: eight modulated delay lines feeding back
@@ -91,7 +111,7 @@ wide. If the CPU runs out (over 88 % for a second), FIKH-S plays with fewer osci
 ## Building
 
     X0X_FONTSET=terminus python3 fm1-base/tools/build.py . --host
-    for t in basic algos pages battery verb snaps; do build/host/fikhs_host tests/$t.txt build/host; done
+    for t in basic algos pages battery verb snaps vol; do build/host/fikhs_host tests/$t.txt build/host; done
 
 The firmware itself is built on GitHub (Actions), on every push to `main`, every pull request and every tag `v*`.
 The sound core alone: `cc -O2 -Idsp -Ifm1-base/include tools/render_demo.c dsp/fikh_core.c -lm -o build/render_demo`.
