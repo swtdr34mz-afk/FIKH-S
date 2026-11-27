@@ -38,6 +38,10 @@ static struct {
     int algo, algo_next;
     float xf, xf_dir;                    /* die Blende beim Wechsel */
     int xf_out;                          /* der Prozessor wechselt auch: den ganzen Ausgang mit ausblenden */
+    uint32_t *clr_p[8], clr_w[8];        /* still leeren, in Stücken je Block (auf einmal käme der Block zu spät) */
+    int clr_n;
+    int ramp_ok;                         /* die Rampen unten haben ihren Startwert */
+    float lg_p, wd_p, dry_p, wet_p, fb_p;   /* Pegel, Breite, MIX, FEED: je Sample geglättet, nicht je Block */
     uint8_t raw[FK_NP];
     volatile uint8_t fresh;
     float tgt[FK_NP];                    /* die Ziele, normiert */
@@ -406,12 +410,22 @@ void fk_render(float *l, float *r, int n)
             if (gen || (E.xf_out && i != P_WIDTH && i != P_LEVEL))   /* blendet der Prozessor mit: auch seine */
                 E.sm[i] = E.tgt[i];                                    /* (WIDTH, LEVEL nie: der Hall klingt weiter) */
         }
-        for (i = 0; i < 4; i++)          /* alte Reste in den Puffern hätten eine Naht: die knackt beim Wiedereinsteigen */
-            fk_zero(E.m.comb[i], FK_CB_N * sizeof(float));
-        if (E.xf_out) {                  /* der Prozessor wechselt: er beginnt leer, nichts Altes kehrt als Knacks wieder */
-            fk_zero(E.m.dl[0], FK_DL_N * sizeof(int16_t));   /* (der Hall klingt weiter) */
-            fk_zero(E.m.dl[1], FK_DL_N * sizeof(int16_t));
-            fk_zero(E.m.ap, FK_AP_N * sizeof(float));
+        /* alte Reste in den Puffern hätten eine Naht, die beim Wiedereinsteigen knackt: sie werden geleert, solange es
+         * still ist, ein Stück je Block (alles auf einmal kostete den Block zu viel Zeit: er käme zu spät, das knackt) */
+        E.clr_n = 0;
+        if (E.algo == 7) {               /* COMB SWARM: seine Kammfilter */
+            for (i = 0; i < 4; i++) {
+                E.clr_p[E.clr_n] = (uint32_t *)(void *)E.m.comb[i];
+                E.clr_w[E.clr_n++] = FK_CB_N;
+            }
+        }
+        if (E.xf_out) {                  /* der Prozessor wechselt: er beginnt leer (der Hall klingt weiter) */
+            E.clr_p[E.clr_n] = (uint32_t *)(void *)E.m.dl[0];
+            E.clr_w[E.clr_n++] = FK_DL_N / 2u;
+            E.clr_p[E.clr_n] = (uint32_t *)(void *)E.m.dl[1];
+            E.clr_w[E.clr_n++] = FK_DL_N / 2u;
+            E.clr_p[E.clr_n] = (uint32_t *)(void *)E.m.ap;
+            E.clr_w[E.clr_n++] = FK_AP_N;
             fk_zero(E.dsp_z, sizeof E.dsp_z);
             fk_zero(E.hil, sizeof E.hil);
             fk_zero(E.hd, sizeof E.hd);
@@ -421,7 +435,24 @@ void fk_render(float *l, float *r, int n)
         }
         if (E.xf_out)
             E.dsm = fk_clamp(fk_time_ms(E.sm[P_TIME]) * (FK_SR / 1000.0f), 8.0f, (float)FK_DL_N - 9000.0f);
-        E.xf_dir = 1.0f;
+        E.xf_dir = E.clr_n ? 0.0f : 1.0f;
+    }
+    if (E.clr_n) {                       /* ein Stück leeren (32 Wörter je Sample: 32 KiB je Block zu 256) */
+        uint32_t w = (uint32_t)n * 32u;
+        while (w && E.clr_n) {
+            int k = E.clr_n - 1;
+            uint32_t m = E.clr_w[k] < w ? E.clr_w[k] : w, j;
+            uint32_t *p = E.clr_p[k];
+            for (j = 0; j < m; j++)
+                p[j] = 0u;
+            E.clr_p[k] = p + m;
+            E.clr_w[k] -= m;
+            w -= m;
+            if (!E.clr_w[k])
+                E.clr_n--;
+        }
+        if (!E.clr_n)
+            E.xf_dir = 1.0f;             /* leer: einblenden */
     }
     block_controls(n);
     switch (E.algo) {
@@ -464,27 +495,41 @@ void fk_render(float *l, float *r, int n)
     /* der Ausgang: Gleichanteil weg, Breite, Pegel, weich begrenzt */
     lg = fm_exp2f(fk_level_db(E.v.level) * 0.1660964f) * 0.9f;
     wd = E.v.width * 1.1f;
-    for (i = 0; i < n; i++) {
-        float a = l[i], b = r[i], m, s;
-        E.dcy[0] = a - E.dcx[0] + 0.9975f * E.dcy[0];
-        E.dcx[0] = a;
-        E.dcy[1] = b - E.dcx[1] + 0.9975f * E.dcy[1];
-        E.dcx[1] = b;
-        m = (E.dcy[0] + E.dcy[1]) * 0.5f;
-        s = (E.dcy[0] - E.dcy[1]) * 0.5f * wd;
-        a = fk_sat((m + s) * lg);
-        b = fk_sat((m - s) * lg);
-        l[i] = a;
-        r[i] = b;
-        if (fk_abs(a) > E.mtr[0])
-            E.mtr[0] = fk_abs(a);
-        if (fk_abs(b) > E.mtr[1])
-            E.mtr[1] = fk_abs(b);
-        if (fk_abs(a) > 0.97f || fk_abs(b) > 0.97f)
-            E.clip = 1;
-        a = fk_abs(a) > fk_abs(b) ? fk_abs(a) : fk_abs(b);
-        E.lvl += (a - E.lvl) * (a > E.lvl ? 0.01f : 0.0004f);
+    if (!E.ramp_ok) {
+        E.lg_p = lg;
+        E.wd_p = wd;
     }
+    {   /* Pegel und Breite gleiten je Sample (je Block stufig: auf einem langen Hall hört man jede Stufe) */
+        float dlg = (lg - E.lg_p) / (float)n, dwd = (wd - E.wd_p) / (float)n;
+        lg = E.lg_p;
+        wd = E.wd_p;
+        E.lg_p += dlg * (float)n;
+        E.wd_p += dwd * (float)n;
+        for (i = 0; i < n; i++) {
+            float a = l[i], b = r[i], m, s;
+            lg += dlg;
+            wd += dwd;
+            E.dcy[0] = a - E.dcx[0] + 0.9975f * E.dcy[0];
+            E.dcx[0] = a;
+            E.dcy[1] = b - E.dcx[1] + 0.9975f * E.dcy[1];
+            E.dcx[1] = b;
+            m = (E.dcy[0] + E.dcy[1]) * 0.5f;
+            s = (E.dcy[0] - E.dcy[1]) * 0.5f * wd;
+            a = fk_sat((m + s) * lg);
+            b = fk_sat((m - s) * lg);
+            l[i] = a;
+            r[i] = b;
+            if (fk_abs(a) > E.mtr[0])
+                E.mtr[0] = fk_abs(a);
+            if (fk_abs(b) > E.mtr[1])
+                E.mtr[1] = fk_abs(b);
+            if (fk_abs(a) > 0.97f || fk_abs(b) > 0.97f)
+                E.clip = 1;
+            a = fk_abs(a) > fk_abs(b) ? fk_abs(a) : fk_abs(b);
+            E.lvl += (a - E.lvl) * (a > E.lvl ? 0.01f : 0.0004f);
+        }
+    }
+    E.ramp_ok = 1;
     flush_states();
 }
 
