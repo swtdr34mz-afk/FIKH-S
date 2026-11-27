@@ -73,7 +73,21 @@ static void proc_block(const float *gl, const float *gr, float *ol, float *or_, 
     float etg = (E.gate || E.hold) && E.note >= 0 ? E.vel : 0.0f, xg = E.xf, xstep = E.xf_dir * (1.0f / 1100.0f), og, sg, xo = (float)E.xf_out;
     float duck = E.duck_g, dstep = (E.duck ? -1.0f : 1.0f) * (1.0f / 441.0f);
     float phs_a = 0.0f, phs_c[2], frz = E.frz, ftg = E.freeze ? 1.0f : 0.0f, fsh = fk_abs(E.v.field);
-    float fmv[2], fms[2];
+    float fmv[2], fms[2], ddry, dwet, dfb;
+    if (!E.ramp_ok) {
+        E.dry_p = dry;
+        E.wet_p = wet;
+        E.fb_p = fb;
+    }
+    ddry = (dry - E.dry_p) / (float)n;          /* MIX und FEED gleiten je Sample */
+    dwet = (wet - E.wet_p) / (float)n;
+    dfb = (fb - E.fb_p) / (float)n;
+    dry = E.dry_p;
+    wet = E.wet_p;
+    fb = E.fb_p;
+    E.dry_p += ddry * (float)n;
+    E.wet_p += dwet * (float)n;
+    E.fb_p += dfb * (float)n;
     {   /* FORM: je diffuser, desto mehr schweben die Abgriffe (zwei langsame LFOs, links und rechts verschieden) */
         int ch;
         float dep = form * form * 0.0045f;
@@ -124,6 +138,9 @@ static void proc_block(const float *gl, const float *gr, float *ol, float *or_, 
             }
         }
         duck = fk_clamp(duck + dstep, 0.0f, 1.0f);
+        dry += ddry;
+        wet += dwet;
+        fb += dfb;
         sg = xg * xg * (3.0f - 2.0f * xg);       /* die Blende: eine weiche S-Kurve statt einer Geraden */
         og = 1.0f - xo + xo * sg;                 /* wechselt der Prozessor mit, blendet der ganze Ausgang */
         x[0] = fk_soft(gl[i] * sg);               /* jede Stufe weich begrenzt: der Generator */
