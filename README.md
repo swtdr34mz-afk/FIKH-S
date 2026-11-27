@@ -22,10 +22,10 @@ any FM-1 firmware. It runs on both FM-1 chips.
 | --- | --- |
 | Keys | **BASIS**: the root of every oscillator. Mono, the last key wins, with velocity |
 | HOME | **GEN**: WARP, SPAN, MORPH, FUSE |
-| FX | **PROC**: MIX, FEED, FORM, TIME |
+| FX | **VERB**: MIX, DECAY, X, FILTER; again **VERB 2**: MODE, DEPTH, RATE, STRETCH (the reverb, the same for every algorithm) |
 | ENV | **FIELD**: FIELD (filter), CELL (frequency shift), ATTACK, RELEASE |
 | EDIT | **MOTION**: GLIDE, DRIFT, WIDTH, LEVEL |
-| LFO | **VERB**: MIX, DECAY, X, FILTER; again **VERB 2**: MODE, DEPTH, RATE, STRETCH (the reverb, the same for every algorithm) |
+| LFO | **PROC**: MIX, FEED, FORM, TIME |
 | SELECT | **SEED**: every detent a new throw of the dice (offsets, wave offsets, delay taps) |
 | ALGORITHM | **SCAN**: scans random timbres, coarse for playing live |
 | PRESET | The algorithm, 1 to 22 (BANK 1: 1-9, BANK 2: 10-18, BANK 3: 19-22). Each keeps its own knobs |

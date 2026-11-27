@@ -31,10 +31,10 @@ darin.
 | --- | --- |
 | Tasten | **BASIS**: der Grundton aller Oszillatoren. Mono, die letzte Taste gewinnt, mit Anschlag |
 | HOME | Seite **GEN**: WARP, SPAN, MORPH, FUSE |
-| FX | Seite **PROC**: MIX, FEED, FORM, TIME |
+| FX | Seite **VERB**: MIX, DECAY, X, FILTER; nochmal: **VERB 2**: MODE, DEPTH, RATE, STRETCH |
 | ENV | Seite **FIELD**: FIELD, CELL, ATTACK, RELEASE |
 | EDIT | Seite **MOTION**: GLIDE, DRIFT, WIDTH, LEVEL |
-| LFO | Seite **VERB**: MIX, DECAY, X, FILTER; nochmal: **VERB 2**: MODE, DEPTH, RATE, STRETCH |
+| LFO | Seite **PROC**: MIX, FEED, FORM, TIME |
 | SELECT | **SEED**: jede Raste ein neuer Wurf |
 | ALGORITHM | **SCAN**: grob, damit man live schnell hinkommt |
 | PRESET | der Algorithmus 1 bis 22 (BANK 1: 1–9, BANK 2: 10–18, BANK 3: 19–22). Jeder behält seine eigenen Reglerstellungen |

@@ -1,9 +1,9 @@
-# FIKH-S: the reverb (VERB, LFO; again VERB 2): global for every algorithm, five modes, FREEZE holds it
+# FIKH-S: the reverb (VERB, FX; again VERB 2): global for every algorithm, five modes, FREEZE holds it
 wait 3000
-tap LFO
-expect page 4
+tap FX
+expect page 1
 shot verb.png
-tap LFO
+tap FX
 expect page 5
 expect p22 12
 # MODE: one detent, one mode (DREAM, DARK, RISE, LIGHT, RAIN)
@@ -17,8 +17,8 @@ turn K1 -1 120
 expect p22 88
 wait 200
 shot verb2.png
-tap LFO
-expect page 4
+tap FX
+expect page 1
 # MIX up, a drone through it
 turn K1 20 120
 expect p18 64

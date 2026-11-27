@@ -32,8 +32,8 @@ wait 100
 expect p0 60
 shot warp.png
 # the pages
-tap FX
-expect page 1
+tap LFO
+expect page 4
 wait 200
 shot proc.png
 tap ENV
