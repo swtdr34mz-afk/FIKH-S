@@ -62,7 +62,7 @@ static void proc_block(const float *gl, const float *gr, float *ol, float *or_, 
     int i, c, refl = FK_ALGOS[E.algo].proc == PROC_REFLEKTA, grain = E.algo == 8, disp = FK_ALGOS[E.algo].proc == PROC_DISPERSOR;
     float dco[12];
     float mixa = E.v.mix * 1.5707963f, dry = fm_cosf(mixa), wet = fm_sinf(mixa) * 1.15f;
-    float fb = fk_abs(E.v.feed) * 1.04f, form = E.v.form, fneg = E.v.feed < 0.0f;
+    float fb = fk_abs(E.v.feed) * 1.04f, form = E.v.form, fneg = fk_clamp(-E.v.feed * 12.0f, 0.0f, 1.0f);   /* FEED links: weich hinüber, nicht umgeschaltet */
     float dtarget = fk_clamp(fk_time_ms(E.v.time) * (FK_SR / 1000.0f), 8.0f, (float)FK_DL_N - 9000.0f);
     float gdun = 0.22f + 0.45f * form + 0.22f * k->diff, gref = 0.38f + 0.32f * form + 0.18f * k->diff;
     float damp = fk_lp_coef(refl ? 4200.0f : 7600.0f), hpc = fk_lp_coef(28.0f);
@@ -70,7 +70,7 @@ static void proc_block(const float *gl, const float *gr, float *ol, float *or_, 
     float gw = 1600.0f + 6400.0f * form, gstep = 0.0f, crush_q = 0.0f, chl = E.ch_lfo;
     float satg = 1.0f + k->sat * 6.0f, satn = k->sat > 0.0f ? 0.85f / fk_sat(satg * 0.5f) * 0.5f : 1.0f;
     float atk = 1.0f / (fk_atk_ms(E.v.atk) * (FK_SR / 1000.0f) + 1.0f), rel = 1.0f / (fk_rel_ms(E.v.rel) * (FK_SR / 1000.0f) + 1.0f);
-    float etg = (E.gate || E.hold) && E.note >= 0 ? E.vel : 0.0f, xg = E.xf, xstep = E.xf_dir * (1.0f / 441.0f);
+    float etg = (E.gate || E.hold) && E.note >= 0 ? E.vel : 0.0f, xg = E.xf, xstep = E.xf_dir * (1.0f / 1100.0f), og, sg, xo = (float)E.xf_out;
     float duck = E.duck_g, dstep = (E.duck ? -1.0f : 1.0f) * (1.0f / 441.0f);
     float phs_a = 0.0f, phs_c[2], frz = E.frz, ftg = E.freeze ? 1.0f : 0.0f, fsh = fk_abs(E.v.field);
     float fmv[2], fms[2];
@@ -106,6 +106,11 @@ static void proc_block(const float *gl, const float *gr, float *ol, float *or_, 
     for (i = 0; i < n; i++) {
         float x[2], gm;
         E.dsm += (dtarget - E.dsm) * 0.00045f;           /* TIME gleitet: das Delay zieht die Tonhöhe mit */
+        for (c = 0; c < 2; c++) {                       /* die Abgriffe gleiten je Sample (je Block sprängen sie: Knacksen) */
+            int j;
+            for (j = 1; j < 4; j++)
+                E.tap[c][j] += (E.tap_t[c][j] - E.tap[c][j]) * 0.00032f;
+        }
         if (fk_abs(xstep) > 0.0f) {                     /* die Blende beim Wechsel des Algorithmus */
             xg += xstep;
             if (xg <= 0.0f) {
@@ -114,11 +119,15 @@ static void proc_block(const float *gl, const float *gr, float *ol, float *or_, 
             } else if (xg >= 1.0f) {
                 xg = 1.0f;
                 xstep = 0.0f;
+                xo = 0.0f;
+                E.xf_out = 0;
             }
         }
         duck = fk_clamp(duck + dstep, 0.0f, 1.0f);
-        x[0] = fk_soft(gl[i] * xg);             /* jede Stufe weich begrenzt: der Generator */
-        x[1] = fk_soft(gr[i] * xg);
+        sg = xg * xg * (3.0f - 2.0f * xg);       /* die Blende: eine weiche S-Kurve statt einer Geraden */
+        og = 1.0f - xo + xo * sg;                 /* wechselt der Prozessor mit, blendet der ganze Ausgang */
+        x[0] = fk_soft(gl[i] * sg);               /* jede Stufe weich begrenzt: der Generator */
+        x[1] = fk_soft(gr[i] * sg);
         gm = (x[0] + x[1]) * 0.5f;
         E.env += (etg - E.env) * (etg > E.env ? atk : rel);
         /* Chorus: zwei langsam schwebende Abgriffe, links und rechts gegenläufig */
@@ -156,14 +165,15 @@ static void proc_block(const float *gl, const float *gr, float *ol, float *or_, 
                 v = fk_lerp(v, bp * 1.6f + k->psine * fk_sin(E.sine_ph) * 0.35f, k->bpm);
             }
             {                                           /* FIELD: Filter und Klangformer in einem */
-                float lp, bp, hp;
+                float lp, bp, hp, lp2, bp2, hp2;
                 if (fsh > 0.0f)                         /* je weiter aus der Mitte, desto mehr formt es vor dem Filter */
                     v = fk_lerp(v, fk_sat(v * (1.0f + fsh * 3.0f)) * (1.0f + fsh * 0.4f), fsh * 0.7f);
-                fk_svf_run(&E.flt[c], &E.fc, v, &lp, &bp, &hp);
-                v = E.field_hp ? hp + bp * fsh * 0.6f : lp + bp * fsh * 0.6f;
+                fk_svf_run(&E.flt[c], &E.fc, v, &lp, &bp, &hp);       /* erst der Tiefpass, dann der Hochpass: */
+                fk_svf_run(&E.flh[c], &E.fch, lp, &lp2, &bp2, &hp2);  /* kein Umschalten, kein Knacken in der Mitte */
+                v = hp2 + (E.field_hp ? bp2 : bp) * fsh * 0.6f;
                 v = fk_soft(v);                         /* (weich begrenzt: das Filter) */
             }
-            x[c] = v * E.env;
+            x[c] = v * E.env * sg;             /* (auch nach Chorus und Filter: beim Wechsel ist es dort ganz still) */
         }
         E.sine_ph = ph_step(E.sine_ph, E.f0 * (1.0f / FK_SR));
         E.chw = (E.chw + 1u) & (FK_CH_N - 1u);
@@ -233,17 +243,17 @@ static void proc_block(const float *gl, const float *gr, float *ol, float *or_, 
             }
             frz += (ftg - frz) * 0.0004f;
             for (c = 0; c < 2; c++) {
-                float f = fneg ? s[c] : y[c], wv = fneg ? s[c] : 0.5f * (y[c] + s[c]), z, o;
+                float f = fk_lerp(y[c], s[c], fneg), wv = fk_lerp(0.5f * (y[c] + s[c]), s[c], fneg), z, o;
                 z = fk_lp1(&E.dz[c], f, damp);
                 z -= fk_lp1(&E.hz[c], z, hpc);
-                o = fk_sat((in[c] + z * fb) * 0.92f);
+                o = fk_sat((in[c] + z * fb * og) * 0.92f);   /* (wechselt der Prozessor: die Schleife mit leiser, sonst kehrt der Sprung als Knacks wieder) */
                 if (frz > 0.0f)                         /* FREEZE: das rohe Delay kreist unverändert, nichts kommt dazu */
                     o = fk_lerp(o, fk_clamp(raw0[c], -1.0f, 1.0f), frz);
                 E.m.dl[c][E.dw] = (int16_t)(o * 29000.0f);
                 if (c)
-                    or_[i] = (x[c] * dry + wv * wet) * duck;
+                    or_[i] = (x[c] * dry + wv * wet) * duck * og;
                 else
-                    ol[i] = (x[c] * dry + wv * wet) * duck;
+                    ol[i] = (x[c] * dry + wv * wet) * duck * og;
             }
             E.dw = (E.dw + 1u) & (FK_DL_N - 1u);
         }
