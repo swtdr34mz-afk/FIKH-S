@@ -25,7 +25,7 @@
 #include <stdint.h>
 
 #define FK_SR 44100.0f
-#define FK_NALGO 18                      /* zwei Bänke zu neun */
+#define FK_NALGO 22                      /* BANK 1 und 2 zu neun, BANK 3 vier */
 #define FK_BANK 9
 #define FK_BLOCK_MAX 256
 
@@ -109,7 +109,9 @@ float fk_pitch(void);                    /* die Tonhöhe, wie sie gerade (gleite
 int fk_gate(void);
 float fk_env(void);                      /* der VCA 0..1 */
 float fk_level(void);                    /* der Ausgang, geglättet */
-float fk_wet_level(void);                /* der Prozessor, geglättet */
+float fk_wet_level(void);
+float fk_meter(int c);                   /* VOL: der Spitzenpegel des Kanals (0..1, fällt ab) */
+int fk_clipped(void);                    /* VOL: übersteuert seit dem letzten Aufruf (1) */                /* der Prozessor, geglättet */
 int fk_cur_algo(void);
 uint32_t fk_seed_hash(void);
 const char *fk_value_text(int p, int v, char *t);   /* der Wert eines Parameters, wie er angezeigt wird */

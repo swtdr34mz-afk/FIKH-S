@@ -52,6 +52,12 @@ static struct {
     float vel, pitch, pitch_t, bend, f0, env;
     /* die Oszillatoren */
     float ph[2][8], fb[2][8], semi[4], nz[2];
+    float ph2[2][8], fb2[2][8], sa[8], sb[8];   /* Cluster-Scanning: die zweite Unterstimme, die Versätze (gleitend) */
+    float cs_f[8][8], cs_w[8][8], cs_a[8][8];   /* je Stimme acht Punkte: Frequenz-Versatz, Welle, Lautstärke (SEED) */
+    int cs_i0;
+    float fm_ph[2], fm_v[2];             /* FORM: das Schweben der Abgriffe */
+    float mtr[2];                        /* die Pegelanzeige (VOL), links und rechts */
+    int clip;
     float dr[2][8], drt[2][8];           /* die eigene Drift jedes Oszillators, je Kanal (Cent) */
     float mac_ph, mac_a, mac_b, mac_v[2];   /* DRIFT: die langsame Bewegung von MORPH und SCAN */
     uint32_t noise;
@@ -91,6 +97,7 @@ static float fk_atk_ms(float u);
 #include "fikh_params.c"
 #include "fikh_tables.c"
 #include "fikh_gen.c"
+#include "fikh_cluster.c"
 #include "fikh_gen2.c"
 #include "fikh_proc.c"
 #include "fikh_verb.c"
@@ -117,6 +124,16 @@ static void reseed(int s)
     }
     for (k = 0; k < 12u; k++)
         E.dsp_a[k] = fk_rand11(&r);
+    {                                    /* das Cluster-Scanning: acht Punkte je Stimme */
+        uint32_t v, q;
+        for (v = 0; v < 8u; v++)
+            for (q = 0; q < 8u; q++) {
+                E.cs_f[v][q] = fk_rand11(&r);
+                E.cs_w[v][q] = fk_rand01(&r);
+                E.cs_a[v][q] = 0.45f + 0.55f * fk_rand01(&r);
+            }
+        E.cs_f[0][0] *= 0.2f;            /* am Anfang der Reihe trägt eine Stimme nah am Grundton */
+    }
     E.seed = s;
 }
 
@@ -231,9 +248,10 @@ void fk_init(const fk_mem *m)
     E.rc = 1.0f;
     E.noise = 0x2545F491u;
     E.seed = -1;
+    E.cs_i0 = -1;
     for (c = 0; c < 2; c++)
         for (i = 0; i < 8; i++)
-            E.ph[c][i] = (float)((i * 37) % 64) / 64.0f;   /* links und rechts in Phase: breit nur durch die Drift */
+            E.ph2[c][i] = E.ph[c][i] = (float)((i * 37) % 64) / 64.0f;   /* links und rechts in Phase: breit nur durch die Drift */
     fk_copy(E.raw, FK_ALGOS[0].init, FK_NPA);
     fk_copy(E.raw + FK_NPA, FK_VERB_INIT, FK_NPV);
     targets();
@@ -263,8 +281,10 @@ static void flush_states(void)
         E.bpf[c].ic2 = fm_flush(E.bpf[c].ic2);
         for (i = 0; i < 4; i++)
             E.phz[c][i] = fm_flush(E.phz[c][i]);
-        for (i = 0; i < 8; i++)
+        for (i = 0; i < 8; i++) {
             E.fb[c][i] = fm_flush(E.fb[c][i]);
+            E.fb2[c][i] = fm_flush(E.fb2[c][i]);
+        }
     }
     f = &E.hil[0][0][0];
     for (i = 0; i < 2 * 2 * 16; i++)
@@ -374,7 +394,8 @@ void fk_render(float *l, float *r, int n)
         targets();
         for (c = 0; c < 2; c++)
             for (i = 0; i < 8; i++)
-                E.fb[c][i] = 0.0f;
+                E.fb[c][i] = E.fb2[c][i] = 0.0f;
+        E.cs_i0 = -1;
         E.xf_dir = 1.0f;
     }
     block_controls(n);
@@ -382,7 +403,7 @@ void fk_render(float *l, float *r, int n)
     case 0: gen_metal(gl, gr, n); break;
     case 1: gen_shaper(gl, gr, n); break;
     case 2: gen_sines(gl, gr, n); break;
-    case 3: gen_quad(gl, gr, n); break;
+    case 3: gen_quad(gl, gr, n, WQ_QUAD); break;
     case 4: gen_diatonic(gl, gr, n); break;
     case 5: gen_chords(gl, gr, n); break;
     case 6: gen_partials(gl, gr, n); break;
@@ -396,10 +417,14 @@ void fk_render(float *l, float *r, int n)
     case 14: gen_weather(gl, gr, n); break;
     case 15: gen_arch(gl, gr, n); break;
     case 16: gen_fold(gl, gr, n); break;
-    default: gen_ssaw(gl, gr, n); break;
+    case 17: gen_ssaw(gl, gr, n); break;
+    case 18: gen_quad(gl, gr, n, WQ_PM); break;
+    case 19: gen_quad(gl, gr, n, WQ_FOLD); break;
+    case 20: gen_freecl(gl, gr, n, 0); break;
+    default: gen_freecl(gl, gr, n, 1); break;
     }
     /* das Filter: FIELD und die Resonanz, die FUSE dazugibt */
-    fk_svf_set(&E.fc, fk_field_hz(E.v.field), 0.08f + E.cfg.res * 0.9f);
+    fk_svf_set(&E.fc, fk_field_hz(E.v.field), 0.08f + fk_abs(E.v.field) * 0.30f + E.cfg.res * 0.9f);
     if (E.cfg.bpm > 0.0f)
         fk_svf_set(&E.bpc, E.f0 * 3.0f * fm_exp2f(E.v.morph * 2.0f), 0.75f);
     E.shift_hz = E.algo == 8 ? 0.0f : fk_cell_hz(E.v.cell);
@@ -420,6 +445,12 @@ void fk_render(float *l, float *r, int n)
         b = fk_sat((m - s) * lg);
         l[i] = a;
         r[i] = b;
+        if (fk_abs(a) > E.mtr[0])
+            E.mtr[0] = fk_abs(a);
+        if (fk_abs(b) > E.mtr[1])
+            E.mtr[1] = fk_abs(b);
+        if (fk_abs(a) > 0.97f || fk_abs(b) > 0.97f)
+            E.clip = 1;
         a = fk_abs(a) > fk_abs(b) ? fk_abs(a) : fk_abs(b);
         E.lvl += (a - E.lvl) * (a > E.lvl ? 0.01f : 0.0004f);
     }
@@ -427,6 +458,18 @@ void fk_render(float *l, float *r, int n)
 }
 
 /* ------------------------------------------------------------- Anzeige --- */
+float fk_meter(int c)                    /* der Spitzenpegel seit dem letzten Aufruf (0..1), dann fällt er */
+{
+    float v = E.mtr[c & 1];
+    E.mtr[c & 1] = v * 0.80f;
+    return v;
+}
+int fk_clipped(void)
+{
+    int k = E.clip;
+    E.clip = 0;
+    return k;
+}
 int fk_note(void) { return (E.gate || E.hold) ? E.note : -1; }
 float fk_pitch(void) { return E.pitch; }
 int fk_gate(void) { return E.gate; }

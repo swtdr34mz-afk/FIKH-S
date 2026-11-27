@@ -55,6 +55,15 @@ const fk_algo_info FK_ALGOS[FK_NALGO] = {
      {64, 66, 40, 30, 30, 70, 40, 60, 44, 64, 4, 50, 14, 30, 70, 96, 3, 64}},
     {"SUPERSAW", "SEVEN SAWS", PROC_REFLEKTA,
      {64, 84, 10, 34, 58, 82, 80, 80, 50, 64, 30, 82, 18, 40, 100, 92, 19, 50}},
+    /* BANK 3: die übrigen Algorithmen der ersten Bank des Moduls (5, 6, 8, 9) */
+    {"WAVE PM", "WAVETABLE / PM", PROC_DUNGEON,
+     {48, 80, 44, 40, 60, 84, 66, 72, 50, 64, 30, 76, 18, 50, 96, 96, 25, 36}},
+    {"WAVE FOLD", "WAVETABLE / FOLDER", PROC_REFLEKTA,
+     {56, 80, 36, 82, 64, 88, 82, 78, 52, 64, 32, 82, 18, 50, 96, 94, 35, 40}},
+    {"METAL CLUSTER", "CLUSTER SCAN", PROC_DUNGEON,
+     {64, 90, 50, 34, 62, 86, 70, 74, 50, 64, 44, 86, 22, 56, 100, 98, 39, 34}},
+    {"DIFFUSE CLUSTER", "CLUSTER SCAN", PROC_REFLEKTA,
+     {64, 90, 50, 34, 70, 92, 90, 82, 48, 64, 50, 90, 24, 58, 104, 98, 47, 34}},
 };
 
 static char *vt_cat(char *d, const char *s)

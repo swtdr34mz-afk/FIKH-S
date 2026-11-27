@@ -1,4 +1,4 @@
-# FIKH-S: every algorithm of BANK 1 and BANK 2, held as a drone (a screen and a recording of each)
+# FIKH-S: every algorithm of BANK 1, BANK 2 and BANK 3, held as a drone (a screen and a recording of each)
 wait 3000
 tap PLAY
 expect hold 1
@@ -126,6 +126,34 @@ wavstop
 expect peak_db_min -40
 expect engine_algo 17
 shot a18.png
+turn PRESET 1
+wav a19.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+expect engine_algo 18
+shot a19.png
+turn PRESET 1
+wav a20.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+expect engine_algo 19
+shot a20.png
+turn PRESET 1
+wav a21.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+expect engine_algo 20
+shot a21.png
+turn PRESET 1
+wav a22.wav
+wait 2500
+wavstop
+expect peak_db_min -40
+expect engine_algo 21
+shot a22.png
 # around: back to the first
 turn PRESET 1
 expect algo 0

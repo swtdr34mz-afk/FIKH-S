@@ -36,49 +36,6 @@ static void gen_zero(float *gl, float *gr, int n)
         E.cfg.sat = E.v.fuse;
 }
 
-/* ---- 11 DISPERSOR: vier gekoppelte Sinus (jeder zieht an der Phase seiner Nachbarn); der Prozessor ist eine Kette
- *      von Allpässen in der Schleife, die die Echos zu Zirpen verbiegt (FORM wie stark, SEED verteilt sie).
- *      SPAN spreizt den Cluster, MORPH scannt, WARP links Phasenkopplung, rechts chaotische Kreuz-FM */
-static void gen_disp(float *gl, float *gr, int n)
-{
-    float w = E.v.warp, sp = fk_abs(E.v.span), amp[4], cpl = 0.04f + (w < 0.0f ? -w * 0.35f : 0.0f);
-    float xm = w > 0.0f ? w * 1.4f : 0.0f;
-    int c, i, k;
-    for (k = 0; k < 4; k++)
-        amp[k] = 0.3f + scan_bell((float)k / 3.0f, E.v.morph, 0.3f);
-    for (c = 0; c < 2; c++) {
-        float *o = c ? gr : gl, d[4], p[4], y[4];
-        for (k = 0; k < 4; k++) {
-            float st = E.r_off[k] * sp * 12.0f + (c && E.v.span > 0.0f ? E.r_off2[k] * E.v.span * 0.4f : 0.0f);
-            d[k] = osc_inc(c, k, st);
-            p[k] = E.ph[c][k];
-            y[k] = E.fb[c][k];
-        }
-        for (i = 0; i < n; i++) {
-            float s = 0.0f, ny[4];
-            for (k = 0; k < 4; k++) {
-                float dk = d[k], nb = y[(k + 1) & 3] + y[(k + 3) & 3];
-                if (xm > 0.0f)
-                    dk *= fk_exp2s(y[(k + 2) & 3] * xm);
-                p[k] = ph_step(p[k], dk);
-                ny[k] = fk_sin(p[k] + cpl * nb);
-                s += amp[k] * ny[k];
-            }
-            for (k = 0; k < 4; k++)
-                y[k] = ny[k];
-            o[i] = s * 0.24f;
-        }
-        for (k = 0; k < 4; k++) {
-            E.ph[c][k] = p[k];
-            E.fb[c][k] = y[k];
-        }
-    }
-    if (E.v.fuse < 0.0f)
-        E.cfg.diff = -E.v.fuse;
-    else
-        E.cfg.sat = E.v.fuse;
-}
-
 /* ---- 12 NOTCH STACK: zwei Sinus, übersteuert, durch einen Stapel von vier Kerbfiltern, die MORPH durch das
  *      Spektrum schiebt (SEED verteilt sie). SPAN der zweite Sinus (±1 Oktave), WARP links Kreuz-FM, rechts PM;
  *      SCAN nach dem Treiber ein Gleichrichter / Waveshaper; FUSE links verrauschte, rechts harte Sättigung */
