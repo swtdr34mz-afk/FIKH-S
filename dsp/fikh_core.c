@@ -37,6 +37,7 @@ static struct {
     fk_mem m;
     int algo, algo_next;
     float xf, xf_dir;                    /* die Blende beim Wechsel */
+    int xf_out;                          /* der Prozessor wechselt auch: den ganzen Ausgang mit ausblenden */
     uint8_t raw[FK_NP];
     volatile uint8_t fresh;
     float tgt[FK_NP];                    /* die Ziele, normiert */
@@ -63,8 +64,8 @@ static struct {
     uint32_t noise;
     fk_cfg cfg;
     /* Filter, Effekte */
-    fk_svf flt[2], bpf[2];
-    fk_svf_c fc, bpc;
+    fk_svf flt[2], flh[2], bpf[2];      /* FIELD: Tiefpass und Hochpass hintereinander, nie umgeschaltet */
+    fk_svf_c fc, fch, bpc;
     int field_hp;
     uint32_t chw;
     float ch_lfo, ph_lfo, phz[2][4], sine_ph;
@@ -207,6 +208,8 @@ void fk_algo(int a)
 {
     if (a < 0 || a >= FK_NALGO || (a == E.algo && E.algo_next < 0))
         return;
+    if (FK_ALGOS[a].proc != FK_ALGOS[E.algo].proc || (a == 8) != (E.algo == 8))
+        E.xf_out = 1;
     E.algo_next = a;
     E.xf_dir = -1.0f;                    /* ausblenden; gewechselt wird, wenn es still ist */
 }
@@ -258,6 +261,7 @@ void fk_init(const fk_mem *m)
     for (i = 0; i < FK_NP; i++)
         E.sm[i] = E.tgt[i];
     E.dsm = fk_time_ms(E.sm[P_TIME]) * (FK_SR / 1000.0f);
+    fk_copy(E.tap, E.tap_t, sizeof E.tap);
     E.pitch = E.pitch_t = 48.0f;
 }
 
@@ -277,6 +281,8 @@ static void flush_states(void)
         E.nz[c] = fm_flush(E.nz[c]);
         E.flt[c].ic1 = fm_flush(E.flt[c].ic1);
         E.flt[c].ic2 = fm_flush(E.flt[c].ic2);
+        E.flh[c].ic1 = fm_flush(E.flh[c].ic1);
+        E.flh[c].ic2 = fm_flush(E.flh[c].ic2);
         E.bpf[c].ic1 = fm_flush(E.bpf[c].ic1);
         E.bpf[c].ic2 = fm_flush(E.bpf[c].ic2);
         for (i = 0; i < 4; i++)
@@ -314,7 +320,7 @@ static void block_controls(int n)
 {
     float k = 1.0f - fm_expf(-(float)n / (0.035f * FK_SR)), dk, gl;
     int i, c;
-    if (E.fresh) {
+    if (E.fresh && E.algo_next < 0) {    /* (während des Ausblendens bleibt alles, wie es klang) */
         E.fresh = 0;
         targets();
     }
@@ -365,9 +371,6 @@ static void block_controls(int n)
     E.v.vrate = E.sm[P_VRATE];
     E.v.vstretch = E.sm[P_VSTRETCH];
     E.v.scan = fk_clamp(E.sm[P_SCAN] + E.mac_v[1] * 0.14f * dk, 0.0f, 1.0f);
-    for (c = 0; c < 2; c++)
-        for (i = 0; i < 4; i++)
-            E.tap[c][i] += (E.tap_t[c][i] - E.tap[c][i]) * k * 0.5f;
     /* BASIS: die Tonhöhe gleitet (GLIDE) */
     gl = fk_glide_ms(E.v.glide);
     if (gl <= 0.0f)
@@ -396,6 +399,28 @@ void fk_render(float *l, float *r, int n)
             for (i = 0; i < 8; i++)
                 E.fb[c][i] = E.fb2[c][i] = 0.0f;
         E.cs_i0 = -1;
+        /* der Generator ist still: seine Werte gleich ganz, kein Nachziehen durch die Cluster-Punkte */
+        for (i = 0; i < FK_NPA; i++) {
+            int gen = i == P_WARP || i == P_SPAN || i == P_MORPH || i == P_FUSE || i == P_FIELD || i == P_ATK
+                      || i == P_REL || i == P_GLIDE || i == P_DRIFT || i == P_SCAN;
+            if (gen || (E.xf_out && i != P_WIDTH && i != P_LEVEL))   /* blendet der Prozessor mit: auch seine */
+                E.sm[i] = E.tgt[i];                                    /* (WIDTH, LEVEL nie: der Hall klingt weiter) */
+        }
+        for (i = 0; i < 4; i++)          /* alte Reste in den Puffern hätten eine Naht: die knackt beim Wiedereinsteigen */
+            fk_zero(E.m.comb[i], FK_CB_N * sizeof(float));
+        if (E.xf_out) {                  /* der Prozessor wechselt: er beginnt leer, nichts Altes kehrt als Knacks wieder */
+            fk_zero(E.m.dl[0], FK_DL_N * sizeof(int16_t));   /* (der Hall klingt weiter) */
+            fk_zero(E.m.dl[1], FK_DL_N * sizeof(int16_t));
+            fk_zero(E.m.ap, FK_AP_N * sizeof(float));
+            fk_zero(E.dsp_z, sizeof E.dsp_z);
+            fk_zero(E.hil, sizeof E.hil);
+            fk_zero(E.hd, sizeof E.hd);
+            fk_zero(E.dz, sizeof E.dz);
+            fk_zero(E.hz, sizeof E.hz);
+            fk_copy(E.tap, E.tap_t, sizeof E.tap);
+        }
+        if (E.xf_out)
+            E.dsm = fk_clamp(fk_time_ms(E.sm[P_TIME]) * (FK_SR / 1000.0f), 8.0f, (float)FK_DL_N - 9000.0f);
         E.xf_dir = 1.0f;
     }
     block_controls(n);
@@ -424,7 +449,13 @@ void fk_render(float *l, float *r, int n)
     default: gen_freecl(gl, gr, n, 1); break;
     }
     /* das Filter: FIELD und die Resonanz, die FUSE dazugibt */
-    fk_svf_set(&E.fc, fk_field_hz(E.v.field), 0.08f + fk_abs(E.v.field) * 0.30f + E.cfg.res * 0.9f);
+    {   /* links schließt der Tiefpass, rechts öffnet der Hochpass; die Resonanz wandert weich mit hinüber */
+        float f = E.v.field, wl = fk_clamp(1.0f - f * 8.0f, 0.0f, 1.0f), wh = fk_clamp(f * 8.0f, 0.0f, 1.0f);
+        float lr = 0.08f + (f < 0.0f ? -f * 0.30f : 0.0f) + E.cfg.res * 0.9f * wl;
+        float hr = 0.08f * wh + (f > 0.0f ? f * 0.30f : 0.0f) + E.cfg.res * 0.9f * wh;
+        fk_svf_set(&E.fc, f < 0.0f ? 20000.0f * fm_exp2f(f * 9.5f) : 20000.0f, lr);
+        fk_svf_set(&E.fch, f > 0.0f ? 20.0f * fm_exp2f(f * 9.0f) : 20.0f, hr);
+    }
     if (E.cfg.bpm > 0.0f)
         fk_svf_set(&E.bpc, E.f0 * 3.0f * fm_exp2f(E.v.morph * 2.0f), 0.75f);
     E.shift_hz = E.algo == 8 ? 0.0f : fk_cell_hz(E.v.cell);
