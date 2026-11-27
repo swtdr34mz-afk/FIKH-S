@@ -24,10 +24,10 @@ pages, HOLD (and FREEZE or ECO), the octave and the battery.
 | --- | --- |
 | Keys | **BASIS**: the root of every oscillator. Mono, the last key wins, with velocity |
 | HOME | page **GEN**: WARP, SPAN, MORPH, FUSE |
-| FX | page **PROC**: MIX, FEED, FORM, TIME |
+| FX | page **VERB**: MIX, DECAY, X, FILTER; again **VERB 2**: MODE, DEPTH, RATE, STRETCH |
 | ENV | page **FIELD**: FIELD, CELL, ATTACK, RELEASE |
 | EDIT | page **MOTION**: GLIDE, DRIFT, WIDTH, LEVEL |
-| LFO | page **VERB**: MIX, DECAY, X, FILTER; again **VERB 2**: MODE, DEPTH, RATE, STRETCH |
+| LFO | page **PROC**: MIX, FEED, FORM, TIME |
 | SELECT | **SEED**: every detent a new throw |
 | ALGORITHM | **SCAN**, coarse, for playing live |
 | PRESET | the algorithm, 1 to 22 (BANK 1: 1-9, BANK 2: 10-18, BANK 3: 19-22); each keeps its own knobs |

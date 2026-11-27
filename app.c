@@ -176,17 +176,17 @@ static void e_off(int note)
 }
 
 /* ------------------------------------------------------------------ Seiten --- */
-enum { PG_GEN, PG_PROC, PG_FIELD, PG_MOTION, PG_VERB, PG_VERB2, NPAGES };
+enum { PG_GEN, PG_VERB, PG_FIELD, PG_MOTION, PG_PROC, PG_VERB2, NPAGES };
 #define NTABS 5
-static const char *const PAGE_NAME[NPAGES] = {"GEN", "PROC", "FIELD", "MOTION", "VERB", "VERB 2"};
-static const uint8_t PAGE_BTN[NPAGES] = {B_HOME, B_FX, B_ENV, B_EDIT, B_LFO, B_LFO};
+static const char *const PAGE_NAME[NPAGES] = {"GEN", "VERB", "FIELD", "MOTION", "PROC", "VERB 2"};
+static const uint8_t PAGE_BTN[NPAGES] = {B_HOME, B_FX, B_ENV, B_EDIT, B_LFO, B_FX};
 static int page_tab(int pg) { return pg == PG_VERB2 ? PG_VERB : pg; }
 static const uint8_t PAGE_K[NPAGES][4] = {
     {P_WARP, P_SPAN, P_MORPH, P_FUSE},
-    {P_MIX, P_FEED, P_FORM, P_TIME},
+    {P_VMIX, P_VDECAY, P_VX, P_VFILT},
     {P_FIELD, P_CELL, P_ATK, P_REL},
     {P_GLIDE, P_DRIFT, P_WIDTH, P_LEVEL},
-    {P_VMIX, P_VDECAY, P_VX, P_VFILT},
+    {P_MIX, P_FEED, P_FORM, P_TIME},
     {P_VMODE, P_VDEPTH, P_VRATE, P_VSTRETCH},
 };
 
@@ -536,7 +536,7 @@ static void keys_input(uint32_t keys)
 static void button(uint32_t i)
 {
     int pg;
-    if (i == B_LFO) {                    /* VERB, nochmal: VERB 2 */
+    if (i == B_FX) {                     /* VERB, nochmal: VERB 2 */
         page_set(ui.page == PG_VERB ? PG_VERB2 : PG_VERB);
         return;
     }

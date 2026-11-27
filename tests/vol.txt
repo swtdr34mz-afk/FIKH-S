@@ -11,7 +11,7 @@ tap GLO
 press GLO
 wait 1100
 release GLO
-tap FX
+tap LFO
 turn K4 5 120
 expect p7 71
 turn PRESET 1
